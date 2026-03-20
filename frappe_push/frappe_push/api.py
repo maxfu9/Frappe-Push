@@ -239,16 +239,19 @@ def trigger_notification_log_push(doc, method=None):
 		frappe.log_error(f"Notification Log Hook Triggered for {doc.for_user}", "Frappe Push Hook")
 		
 		# NATIVE REFINE: 
-		# Title: Just the document ID or subject
-		# Body: Who assigned what
-		title = doc.document_name or doc.subject or "New Alert"
+		# Title: Subject (e.g. "New Customer assigned to you")
+		# Body: From [User] + Message Content
+		title = doc.subject or doc.document_name or "New Alert"
 		
 		from_user_name = frappe.db.get_value("User", doc.from_user, "full_name") or doc.from_user
-		body = f"Assigned by {from_user_name}"
-		if doc.subject and not doc.document_name:
-			body = f"{doc.subject} (from {from_user_name})"
-		elif doc.email_content:
-			body = f"{from_user_name}: {frappe.utils.strip_html(doc.email_content)}"
+		
+		# Build body: Sender + Content
+		content = frappe.utils.strip_html(doc.email_content or "")
+		body = f"From {from_user_name}"
+		if content:
+			body = f"From {from_user_name}: {content}"
+		elif doc.document_name:
+			body = f"From {from_user_name} regarding {doc.document_name}"
 		
 		if len(body) > 120:
 			body = body[:117] + "..."
