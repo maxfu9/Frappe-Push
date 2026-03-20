@@ -27,12 +27,16 @@ def get_public_config():
 	if not config.enable:
 		return None
 	
+	# Fetch site logo for branding
+	site_logo = frappe.db.get_single_value("Website Settings", "app_logo") or "/assets/frappe/images/frappe-favicon.png"
+	
 	return {
 		"apiKey": config.api_key,
 		"projectId": config.project_id,
 		"messagingSenderId": config.messaging_sender_id,
 		"appId": config.app_id,
-		"vapidKey": config.vapid_key
+		"vapidKey": config.vapid_key,
+		"siteLogo": frappe.utils.get_url(site_logo)
 	}
 
 @frappe.whitelist()
@@ -82,6 +86,12 @@ def send_push_notification(token, title, body, data=None):
 			for k, v in data.items():
 				clean_data[str(k)] = str(v) if v is not None else ""
 		
+		# Fetch icon for notification
+		icon = data.get("notification_icon") if data else None
+		if not icon:
+			site_logo = frappe.db.get_single_value("Website Settings", "app_logo") or "/assets/frappe/images/frappe-favicon.png"
+			icon = frappe.utils.get_url(site_logo)
+
 		# Hybrid payload for maximum reliability
 		# Adding 'click_action' to both notification and data for broad compatibility
 		click_action = clean_data.get("click_action", "/app")
@@ -90,9 +100,14 @@ def send_push_notification(token, title, body, data=None):
 			notification=messaging.Notification(
 				title=str(title or "New Notification"),
 				body=str(body or ""),
+				image=icon if icon.startswith("http") else None # image is for large previews
 			),
 			# Platform-specific options for better reliability
 			webpush=messaging.WebpushConfig(
+				notification=messaging.WebpushNotification(
+					icon=icon,
+					badge=icon # small icon in status bar
+				),
 				fcm_options=messaging.WebpushFCMOptions(
 					link=frappe.utils.get_url(click_action)
 				)

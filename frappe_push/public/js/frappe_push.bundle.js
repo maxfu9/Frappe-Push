@@ -56,21 +56,35 @@ frappe_push.setup_firebase = function(config) {
 				const data = payload.notification || payload.data || {};
 				const notificationTitle = data.title || "New Notification";
 				const notificationBody = data.body || "";
+				const clickAction = data.click_action || '/app';
 				
 				const notificationOptions = {
 					body: notificationBody,
-					icon: data.notification_icon || '/assets/frappe/images/frappe-favicon.png'
+					icon: config.siteLogo || data.notification_icon || '/assets/frappe/images/frappe-favicon.png'
 				};
 				
 				// Show a desktop notification even in foreground
 				if (Notification.permission === "granted") {
-					new Notification(notificationTitle, notificationOptions);
+					const n = new Notification(notificationTitle, notificationOptions);
+					n.onclick = (e) => {
+						e.preventDefault();
+						window.focus();
+						if (clickAction) {
+							window.location.href = clickAction;
+						}
+						n.close();
+					};
 				}
 				
-				// Also show a Frappe alert
+				// Also show a Frappe alert (clickable)
 				frappe.show_alert({
 					message: `<b>${notificationTitle}</b><br>${notificationBody}`,
-					indicator: 'blue'
+					indicator: 'blue',
+					onClick: () => {
+						if (clickAction) {
+							window.location.href = clickAction;
+						}
+					}
 				});
 			});
 
