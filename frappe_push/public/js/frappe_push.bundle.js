@@ -56,7 +56,8 @@ frappe_push.setup_firebase = function(config) {
 				const data = payload.notification || payload.data || {};
 				const notificationTitle = data.title || "New Notification";
 				const notificationBody = data.body || "";
-				const clickAction = data.click_action || '/app';
+				// Use absolute click_action_url if available
+				const clickAction = data.click_action_url || data.click_action || '/app';
 				
 				const notificationOptions = {
 					body: notificationBody,

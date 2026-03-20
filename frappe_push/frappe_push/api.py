@@ -94,22 +94,26 @@ def send_push_notification(token, title, body, data=None):
 
 		# Hybrid payload for maximum reliability
 		# Adding 'click_action' to both notification and data for broad compatibility
-		click_action = clean_data.get("click_action", "/app")
+		click_action_url = frappe.utils.get_url(clean_data.get("click_action", "/app"))
+		
+		# Ensure clean_data also has the full URL for the Service Worker
+		clean_data["click_action_url"] = click_action_url
 		
 		message = messaging.Message(
 			notification=messaging.Notification(
 				title=str(title or "New Notification"),
 				body=str(body or ""),
-				image=icon if icon.startswith("http") else None # image is for large previews
+				image=icon if icon.startswith("http") else None
 			),
 			# Platform-specific options for better reliability
 			webpush=messaging.WebpushConfig(
 				notification=messaging.WebpushNotification(
 					icon=icon,
-					badge=icon # small icon in status bar
+					badge=icon,
+					data=clean_data # This makes data available in SW event.notification.data
 				),
 				fcm_options=messaging.WebpushFCMOptions(
-					link=frappe.utils.get_url(click_action)
+					link=click_action_url
 				)
 			),
 			data=clean_data,
