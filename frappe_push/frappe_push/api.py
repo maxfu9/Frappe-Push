@@ -101,6 +101,19 @@ def send_notification_to_user(user, title, body, data=None):
 	# DEBUG
 	frappe.log_error(f"Attempting to send notification to user {user}", "Frappe Push Dispatch")
 
+	# De-duplication Debounce: Prevent identical notifications in a 5-second window
+	# This handles situations where multiple hooks fire for the same event
+	doc_name = data.get("document_name") if data else ""
+	doc_type = data.get("document_type") if data else ""
+	debounce_key = f"frappe_push_debounce:{user}:{frappe.scrub(title)}:{doc_type}:{doc_name}"
+	
+	if frappe.cache().get_value(debounce_key):
+		frappe.log_error(f"Debouncing duplicate notification for user {user}: {title}", "Frappe Push Debounce")
+		return False
+	
+	# Set debounce for 5 seconds
+	frappe.cache().set_value(debounce_key, 1, expires_in_sec=5)
+
 	# Get all tokens for the user, ordered by last used
 	tokens = frappe.get_all("FCM Token", 
 		filters={"user": user}, 
