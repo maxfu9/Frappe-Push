@@ -41,8 +41,15 @@ def subscribe(fcm_token, browser=None, device_id=None):
 	if user == "Guest":
 		return {"success": False, "message": "Not logged in"}
 	
-	# De-duplicate: Remove old tokens for this user and browser
-	frappe.db.delete("FCM Token", {"user": user, "browser": browser})
+	# De-duplicate by both browser AND device_id if available
+	if device_id:
+		frappe.db.delete("FCM Token", {"user": user, "device_id": device_id})
+	
+	if browser:
+		frappe.db.delete("FCM Token", {"user": user, "browser": browser})
+	
+	# Special case: delete exact same token
+	frappe.db.delete("FCM Token", {"fcm_token": fcm_token})
 	
 	# Insert new token
 	doc = frappe.get_doc({
@@ -76,10 +83,19 @@ def send_push_notification(token, title, body, data=None):
 				clean_data[str(k)] = str(v) if v is not None else ""
 		
 		# Hybrid payload for maximum reliability
+		# Adding 'click_action' to both notification and data for broad compatibility
+		click_action = clean_data.get("click_action", "/app")
+		
 		message = messaging.Message(
 			notification=messaging.Notification(
 				title=str(title or "New Notification"),
 				body=str(body or ""),
+			),
+			# Platform-specific options for better reliability
+			webpush=messaging.WebpushConfig(
+				fcm_options=messaging.WebpushFCMOptions(
+					link=click_action
+				)
 			),
 			data=clean_data,
 			token=str(token),
@@ -125,15 +141,16 @@ def send_notification_to_user(user, title, body, data=None):
 		frappe.log_error(f"No FCM tokens found for user {user}. Open the app in browser to register.", "Frappe Push Dispatch")
 		return False
 
-	# De-duplicate by browser in memory
+	# De-duplicate by device_id and browser
 	unique_tokens = []
-	seen_browsers = set()
+	seen_keys = set()
 	
 	for t in tokens:
-		browser_key = t.browser or t.fcm_token
-		if browser_key not in seen_browsers:
+		# Priority Key: Device ID > Browser > Token
+		key = t.device_id or t.browser or t.fcm_token
+		if key not in seen_keys:
 			unique_tokens.append(t.fcm_token)
-			seen_browsers.add(browser_key)
+			seen_keys.add(key)
 	
 	frappe.log_error(f"Found {len(unique_tokens)} unique tokens for user {user}", "Frappe Push Dispatch")
 	

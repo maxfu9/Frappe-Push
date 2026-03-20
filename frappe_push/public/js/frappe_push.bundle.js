@@ -74,7 +74,7 @@ frappe_push.setup_firebase = function(config) {
 				});
 			});
 
-			// Register from API but allow root scope
+			// Revert to proven API path for registration
 			navigator.serviceWorker.register('/api/method/frappe_push.frappe_push.api.get_service_worker', { scope: '/' })
 				.then((registration) => {
 					console.log("Frappe Push: Service Worker registered with scope:", registration.scope);
@@ -134,10 +134,7 @@ frappe_push.setup_firebase = function(config) {
 						}
 					}
 
-					// PROACTIVE DIALOG LOGIC:
-					// 1. If permission is 'default', always show the soft-prompt (dialog).
-					// 2. If permission is 'granted' but we don't have a record of it (localStorage), silently try to get the token.
-					
+					// Proactive Dialog: Re-show whenever state is default (reset)
 					if (Notification.permission === 'default') {
 						const dialog = new frappe.ui.Dialog({
 							title: __('Enable Push Notifications'),
@@ -156,7 +153,6 @@ frappe_push.setup_firebase = function(config) {
 						});
 						dialog.show();
 					} else if (Notification.permission === 'granted') {
-						// Permission is granted, but let's ensure we have a fresh token
 						request_and_get_token(true);
 					}
 				}).catch((err) => {
@@ -169,11 +165,19 @@ frappe_push.setup_firebase = function(config) {
 };
 
 frappe_push.register_token = function(token) {
+	// Generate persistent Device ID for better de-duplication
+	let device_id = localStorage.getItem("frappe_push_device_id");
+	if (!device_id) {
+		device_id = frappe.utils.get_random(16);
+		localStorage.setItem("frappe_push_device_id", device_id);
+	}
+
 	frappe.call({
 		method: "frappe_push.frappe_push.api.subscribe",
 		args: {
 			fcm_token: token,
-			browser: navigator.userAgent
+			browser: navigator.userAgent,
+			device_id: device_id
 		}
 	});
 };

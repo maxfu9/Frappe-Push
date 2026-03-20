@@ -1,67 +1,64 @@
-importScripts("https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js");
+importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js');
 
 // This placeholder will be replaced by the backend with actual config
 const firebaseConfig = {};
 
-self.addEventListener('install', (event) => {
-    console.log('[firebase-messaging-sw.js] Service Worker installing.');
-    self.skipWaiting();
-});
+if (firebaseConfig.apiKey) {
+    firebase.initializeApp(firebaseConfig);
+    const messaging = firebase.messaging();
 
-self.addEventListener('activate', (event) => {
-    console.log('[firebase-messaging-sw.js] Service Worker activating.');
-    event.waitUntil(clients.claim());
-});
+    // Background message handler
+    messaging.onBackgroundMessage((payload) => {
+        console.log('[firebase-messaging-sw.js] Received background message ', payload);
+        
+        /* 
+           IPHONE DUPLICATE FIX:
+           When using a "Hybrid" payload (notification + data), the OS (especially iOS/Safari) 
+           often displays the notification automatically. 
+           If the Service Worker ALSO calls showNotification, the user gets two.
+           
+           We only show a manual notification if the 'notification' object is MISSING 
+           (meaning it's a data-only payload).
+        */
+        
+        if (!payload.notification && payload.data) {
+            const data = payload.data;
+            const notificationTitle = data.title || "New Notification";
+            const notificationOptions = {
+                body: data.body || "",
+                icon: data.notification_icon || '/assets/frappe/images/frappe-favicon.png',
+                data: data // Pass data for click handler
+            };
+            return self.registration.showNotification(notificationTitle, notificationOptions);
+        }
+    });
 
-try {
-	if (firebaseConfig.apiKey) {
-		firebase.initializeApp(firebaseConfig);
-		const messaging = firebase.messaging();
+    // Handle notification click
+    self.addEventListener('notificationclick', function(event) {
+        console.log('[firebase-messaging-sw.js] Notification click Received.');
+        event.notification.close();
 
-		messaging.onBackgroundMessage((payload) => {
-		  console.log('[firebase-messaging-sw.js] Received background message ', payload);
-		  
-		  // Data-only payload support
-		  const data = payload.data || {};
-		  const notificationTitle = data.title || (payload.notification ? payload.notification.title : "New Notification");
-		  const notificationBody = data.body || (payload.notification ? payload.notification.body : "");
-		  
-		  const notificationOptions = {
-		    body: notificationBody,
-		    icon: data.notification_icon || '/assets/frappe/images/frappe-favicon.png',
-		    data: {
-		        click_action: data.click_action || '/app'
-		    },
-		    tag: data.document_name || data.document_type || 'frappe-push-notification',
-		    renotify: true
-		  };
+        const data = event.notification.data || {};
+        const urlToOpen = data.click_action || '/app';
 
-		  return self.registration.showNotification(notificationTitle, notificationOptions);
-		});
-	}
-} catch (e) {
-	console.error("SW Init Error", e);
-}
-
-self.addEventListener('notificationclick', function(event) {
-    event.notification.close();
-    const urlToOpen = (event.notification.data && event.notification.data.click_action) ? event.notification.data.click_action : '/app';
-    
-    event.waitUntil(
-        clients.matchAll({
-            type: 'window',
-            includeUncontrolled: true
-        }).then(function(windowClients) {
-            for (var i = 0; i < windowClients.length; i++) {
-                var client = windowClients[i];
-                if (client.url.indexOf(urlToOpen) !== -1 && 'focus' in client) {
-                    return client.focus();
+        event.waitUntil(
+            clients.matchAll({
+                type: 'window',
+                includeUncontrolled: true
+            }).then(function(windowClients) {
+                // If a window is already open, focus it and navigate
+                for (var i = 0; i < windowClients.length; i++) {
+                    var client = windowClients[i];
+                    if (client.url.indexOf(urlToOpen) !== -1 && 'focus' in client) {
+                        return client.focus();
+                    }
                 }
-            }
-            if (clients.openWindow) {
-                return clients.openWindow(urlToOpen);
-            }
-        })
-    );
-});
+                // Otherwise, open a new window
+                if (clients.openWindow) {
+                    return clients.openWindow(urlToOpen);
+                }
+            })
+        );
+    });
+}
