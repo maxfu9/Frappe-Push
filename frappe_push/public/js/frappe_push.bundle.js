@@ -53,7 +53,8 @@ frappe_push.setup_firebase = function(config) {
 					return;
 				}
 
-				const data = payload.notification || payload.data || {};
+				// MERGE FIX: Data and Notification payloads
+				const data = Object.assign({}, payload.data, payload.notification);
 				const notificationTitle = data.title || "New Notification";
 				const notificationBody = data.body || "";
 				// Use absolute click_action_url if available
