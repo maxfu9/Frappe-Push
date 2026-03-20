@@ -156,17 +156,23 @@ frappe_push.setup_firebase = function(config) {
 					// Handle foreground messages
 					messaging.onMessage((payload) => {
 						console.log("Frappe Push: Foreground message received:", payload);
-						show_foreground_notification(payload);
+						if (payload) {
+							show_foreground_notification(payload);
+						}
 					});
 
 					function show_foreground_notification(payload) {
-						if (!payload.notification) return;
+						// Extract from notification object OR data object (for maximum compatibility)
+						const data = payload.data || {};
+						const notification = payload.notification || {};
 						
 						const notify_id = 'push-notify-' + Date.now();
-						const icon = payload.notification.icon || config.siteLogo;
-						const title = payload.notification.title || __('New Notification');
-						const body = payload.notification.body || '';
-						const click_action = payload.data ? payload.data.click_action : null;
+						const icon = notification.icon || data.notification_icon || config.siteLogo;
+						const title = notification.title || data.title || __('New Notification');
+						const body = notification.body || data.body || '';
+						const click_action = data.click_action || data.click_action_url || null;
+
+						if (!title && !body) return; // Silent background data
 
 						const notify_html = `
 							<div id="${notify_id}" style="
