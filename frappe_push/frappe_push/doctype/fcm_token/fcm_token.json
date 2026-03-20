@@ -17,8 +17,7 @@
    "fieldname": "user",
    "fieldtype": "Link",
    "label": "User",
-   "options": "User",
-   "reqd": 1
+   "options": "User"
   },
   {
    "fieldname": "fcm_token",

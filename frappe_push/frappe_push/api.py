@@ -85,20 +85,25 @@ def get_fcm_app():
 @frappe.whitelist(allow_guest=True)
 def get_public_config():
 	config = frappe.get_single("FCM Config")
-	if not config.enable:
+	if not str(config.enable) == "1":
 		return None
 	
 	# Fetch site logo for branding
 	site_logo = frappe.db.get_single_value("Website Settings", "app_logo") or "/assets/frappe/images/frappe-favicon.png"
 	
-	return {
+	res = {
 		"apiKey": config.api_key,
 		"projectId": config.project_id,
-		"messagingSenderId": config.messaging_sender_id,
+		"messagingSenderId": str(config.messaging_sender_id) if config.messaging_sender_id else None,
 		"appId": config.app_id,
 		"vapidKey": config.vapid_key,
 		"siteLogo": frappe.utils.get_url(site_logo)
 	}
+	
+	# LOG EXACT OUTPUT FOR DEBUGGING
+	frappe.log_error(f"FCM Config Output: {json.dumps(res, indent=2)}", "Frappe Push Config")
+	
+	return res
 
 @frappe.whitelist(allow_guest=True)
 def subscribe(fcm_token, browser=None, device_id=None):
