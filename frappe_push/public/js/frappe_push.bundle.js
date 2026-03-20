@@ -152,22 +152,29 @@ frappe_push.setup_firebase = function(config) {
 
 					// Proactive Dialog: Show for everyone (Staff and Guests)
 					if (Notification.permission === 'default') {
-						const dialog = new frappe.ui.Dialog({
-							title: __('Stay Updated!'),
-							fields: [
-								{
-									fieldname: 'info',
-									fieldtype: 'HTML',
-									options: `<p>${__('Get real-time updates on your orders and exclusive offers from Europlast.')}</p>`
+						if (typeof frappe.ui !== 'undefined' && typeof frappe.ui.Dialog !== 'undefined') {
+							const dialog = new frappe.ui.Dialog({
+								title: __('Stay Updated!'),
+								fields: [
+									{
+										fieldname: 'info',
+										fieldtype: 'HTML',
+										options: `<p>${__('Get real-time updates on your orders and exclusive offers from Europlast.')}</p>`
+									}
+								],
+								primary_action_label: __('Enable Now'),
+								primary_action(values) {
+									request_and_get_token(false);
+									dialog.hide();
 								}
-							],
-							primary_action_label: __('Enable Now'),
-							primary_action(values) {
+							});
+							dialog.show();
+						} else {
+							// Website Fallback: Standard browser confirm if Frappe UI is missing
+							if (confirm(__('Would you like to receive push notifications for order updates and exclusive offers?'))) {
 								request_and_get_token(false);
-								dialog.hide();
 							}
-						});
-						dialog.show();
+						}
 					} else if (Notification.permission === 'granted') {
 						request_and_get_token(true);
 					}
