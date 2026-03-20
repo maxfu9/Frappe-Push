@@ -9,6 +9,8 @@
   "fcm_settings_sb",
   "enable",
   "project_id",
+  "messaging_sender_id",
+  "app_id",
   "api_key",
   "proxy_relay",
   "vapid_key",
@@ -37,13 +39,24 @@
    "reqd": 1
   },
   {
+   "fieldname": "messaging_sender_id",
+   "fieldtype": "Data",
+   "label": "Messaging Sender ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "app_id",
+   "fieldtype": "Data",
+   "label": "App ID",
+   "reqd": 1
+  },
+  {
    "fieldname": "api_key",
    "fieldtype": "Data",
    "label": "API Key",
    "reqd": 1
   },
   {
-   "description": "Optional: Custom relay server URL if you are using one.",
    "fieldname": "proxy_relay",
    "fieldtype": "Data",
    "label": "Proxy Relay URL"
@@ -84,7 +97,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-03-20 14:30:00.000000",
+ "modified": "2026-03-20T20:20:00.000000",
  "modified_by": "Administrator",
  "module": "Frappe Push",
  "name": "FCM Config",
