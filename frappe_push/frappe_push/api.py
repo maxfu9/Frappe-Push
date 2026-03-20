@@ -3,11 +3,10 @@ import json
 from frappe import _
 
 @frappe.whitelist()
-def send_promo_broadcast(title, message, click_action="/app"):
+def send_promo_broadcast(title, message, click_action="/app", target="Both"):
 	"""
-	Sends a push notification to ALL subscribers in the database.
-	Used for marketing and flash sales.
-	Only Administrators and System Managers can call this.
+	Sends a push notification to ALL or specific groups of subscribers.
+	target: "Both", "Guests", or "Staff"
 	"""
 	if frappe.session.user != "Administrator" and "System Manager" not in frappe.get_roles():
 		frappe.throw(_("Not authorized to send broadcasts."))
@@ -19,20 +18,25 @@ def send_promo_broadcast(title, message, click_action="/app"):
 	if not app:
 		frappe.throw(_("FCM is not configured or enabled."))
 
-	# Fetch all unique tokens
-	tokens = frappe.db.get_all("FCM Token", fields=["fcm_token"])
-	token_list = [t.fcm_token for t in tokens if t.fcm_token]
+	# Build filters based on target
+	filters = {}
+	if target == "Guests":
+		filters["user"] = ["in", ["Guest", None, ""]]
+	elif target == "Staff":
+		filters["user"] = ["not in", ["Guest", None, ""]]
+	
+	# Fetch unique tokens matching the filter
+	tokens = frappe.db.get_all("FCM Token", filters=filters, fields=["fcm_token"])
+	token_list = list(set([t.fcm_token for t in tokens if t.fcm_token]))
 
 	if not token_list:
-		return {"status": "error", "message": "No subscribers found."}
+		return {"status": "error", "message": f"No {target} subscribers found."}
 
 	# FCM Multicast Limit: 500 tokens per batch
 	success_count = 0
 	for i in range(0, len(token_list), 500):
 		batch = token_list[i:i + 500]
 		
-		# Build a simple notification
-		# Using Website icon for branding
 		site_logo = frappe.db.get_single_value("Website Settings", "app_logo") or "/assets/frappe/images/frappe-favicon.png"
 		icon_url = frappe.utils.get_url(site_logo)
 
@@ -56,7 +60,7 @@ def send_promo_broadcast(title, message, click_action="/app"):
 		response = messaging.send_each_for_multicast(multicast_message, app=app)
 		success_count += response.success_count
 
-	return {"status": "success", "sent_count": success_count}
+	return {"status": "success", "sent_count": success_count, "target": target}
 
 def get_fcm_app():
 	import firebase_admin
