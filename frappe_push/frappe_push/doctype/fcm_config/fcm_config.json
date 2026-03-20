@@ -1,0 +1,109 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-03-20 14:30:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "fcm_settings_sb",
+  "enable",
+  "project_id",
+  "api_key",
+  "proxy_relay",
+  "vapid_key",
+  "column_break_fcm",
+  "fcm_service_account_json",
+  "test_sb",
+  "test_token",
+  "send_test_notification"
+ ],
+ "fields": [
+  {
+   "fieldname": "fcm_settings_sb",
+   "fieldtype": "Section Break",
+   "label": "FCM Settings"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable",
+   "fieldtype": "Check",
+   "label": "Enable"
+  },
+  {
+   "fieldname": "project_id",
+   "fieldtype": "Data",
+   "label": "Project ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "api_key",
+   "fieldtype": "Data",
+   "label": "API Key",
+   "reqd": 1
+  },
+  {
+   "description": "Optional: Custom relay server URL if you are using one.",
+   "fieldname": "proxy_relay",
+   "fieldtype": "Data",
+   "label": "Proxy Relay URL"
+  },
+  {
+   "description": "Required for Web Push. Find it in Firebase Project Settings > Cloud Messaging > Web Push certificates.",
+   "fieldname": "vapid_key",
+   "fieldtype": "Data",
+   "label": "VAPID Key"
+  },
+  {
+   "fieldname": "column_break_fcm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Paste the content of your Firebase Service Account JSON file here.",
+   "fieldname": "fcm_service_account_json",
+   "fieldtype": "Password",
+   "label": "FCM Service Account JSON",
+   "reqd": 1
+  },
+  {
+   "fieldname": "test_sb",
+   "fieldtype": "Section Break",
+   "label": "Test"
+  },
+  {
+   "fieldname": "test_token",
+   "fieldtype": "Data",
+   "label": "Test Token"
+  },
+  {
+   "fieldname": "send_test_notification",
+   "fieldtype": "Button",
+   "label": "Send Test Notification"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-03-20 14:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Frappe Push",
+ "name": "FCM Config",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

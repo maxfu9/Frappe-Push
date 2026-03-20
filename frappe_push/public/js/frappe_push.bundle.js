@@ -1,0 +1,186 @@
+frappe.provide("frappe_push");
+console.log("Frappe Push script loaded from /assets/frappe_push/js/frappe_push.js");
+
+frappe_push.init = function() {
+	console.log("Frappe Push initializing for user:", frappe.session.user);
+	console.log("Current Notification Permission:", Notification.permission);
+	
+	if (!("Notification" in window)) {
+		console.log("This browser does not support desktop notification");
+		return;
+	}
+
+	if (localStorage.getItem("frappe_push_subscribed") === "true" && Notification.permission === "granted") {
+		console.log("Frappe Push: Already subscribed in this browser session. Updating token in background...");
+	} else if (Notification.permission === "denied") {
+		console.warn("Frappe Push: Notifications are BLOCKED by the browser. Please reset permissions in the address bar (lock icon).");
+		return;
+	}
+
+	console.log("Frappe Push: Fetching config...");
+	frappe.call({
+		method: "frappe_push.frappe_push.api.get_public_config",
+		callback: function(r) {
+			console.log("Frappe Push: Config API response:", r.message);
+			if (r.message) {
+				frappe_push.setup_firebase(r.message);
+			} else {
+				console.log("Frappe Push: No config received or app disabled.");
+			}
+		},
+		error: function(e) {
+			console.error("Frappe Push: API Error:", e);
+		}
+	});
+};
+
+frappe_push.setup_firebase = function(config) {
+	frappe.require([
+		"https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js",
+		"https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js"
+	], function() {
+		try {
+			if (!firebase.apps.length) {
+				firebase.initializeApp(config);
+			}
+			const messaging = firebase.messaging();
+			
+			// Handle foreground messages
+			messaging.onMessage((payload) => {
+				console.log('Frappe Push: Received foreground message ', payload);
+				const notificationTitle = payload.notification.title;
+				const notificationOptions = {
+					body: payload.notification.body,
+					icon: payload.data ? payload.data.notification_icon : '/assets/frappe/images/frappe-favicon.png'
+				};
+				
+				// Show a desktop notification even in foreground
+				if (Notification.permission === "granted") {
+					new Notification(notificationTitle, notificationOptions);
+				}
+				
+				// Also show a Frappe alert
+				frappe.show_alert({
+					message: `<b>${notificationTitle}</b><br>${notificationOptions.body}`,
+					indicator: 'blue'
+				});
+			});
+
+			navigator.serviceWorker.register('/api/method/frappe_push.frappe_push.api.get_service_worker', { scope: '/' })
+				.then((registration) => {
+					console.log("Frappe Push: Service Worker registered with scope:", registration.scope);
+					
+					// Wait for the service worker to be ready/active
+					return navigator.serviceWorker.ready;
+				})
+				.then((registration) => {
+					// Wait an additional second to ensure everything is stable
+					return new Promise(resolve => setTimeout(() => resolve(registration), 1000));
+				})
+				.then((registration) => {
+					function request_and_get_token(silent = false) {
+						if (!silent) {
+							frappe.show_alert({message: __('Requesting permission...'), indicator: 'blue'});
+						}
+						
+						// Safari fix: handle both Promise and Callback
+						const handlePermission = (permission) => {
+							if (permission === 'granted') {
+								if (!silent) {
+									frappe.show_alert({message: __('Permission granted! Finalizing...'), indicator: 'green'});
+								}
+								
+								messaging.getToken({ 
+									vapidKey: config.vapidKey,
+									serviceWorkerRegistration: registration 
+								}).then((currentToken) => {
+									if (currentToken) {
+										console.log("Frappe Push: Token retrieved successfully!");
+										frappe_push.register_token(currentToken);
+										localStorage.setItem("frappe_push_subscribed", "true");
+										if (!silent) {
+											frappe.show_alert({message: __('Successfully subscribed!'), indicator: 'green'});
+										}
+									} else {
+										if (!silent) {
+											frappe.show_alert({message: __('No token available.'), indicator: 'orange'});
+										}
+									}
+								}).catch((err) => {
+									console.error('An error occurred while retrieving token. ', err);
+									if (!silent) {
+										frappe.msgprint(__('Failed to get Push Token: ') + err.message);
+									}
+								});
+							} else {
+								console.log('Unable to get permission:', permission);
+								if (!silent) {
+									frappe.show_alert({message: __('Notification permission denied.'), indicator: 'red'});
+								}
+							}
+						};
+
+						const promise = Notification.requestPermission();
+						if (promise) {
+							promise.then(handlePermission);
+						} else {
+							Notification.requestPermission(handlePermission);
+						}
+					}
+
+					if (Notification.permission === 'default' || (Notification.permission === 'granted' && localStorage.getItem("frappe_push_subscribed") !== "true")) {
+						if (Notification.permission === 'granted') {
+							// Already granted but no token recorded in this session? Refresh silently.
+							request_and_get_token(true);
+							return;
+						}
+
+						const dialog = new frappe.ui.Dialog({
+							title: __('Enable Push Notifications'),
+							fields: [
+								{
+									fieldname: 'info',
+									fieldtype: 'HTML',
+									options: `<p>${__('Stay updated with real-time alerts for assignments, mentions, and more.')}</p>`
+								}
+							],
+							primary_action_label: __('Enable Now'),
+							primary_action(values) {
+								request_and_get_token(false);
+								dialog.hide();
+							}
+						});
+						dialog.show();
+					} else if (Notification.permission === 'granted') {
+						// Already subscribed, just refresh token in background silently
+						request_and_get_token(true);
+					}
+				}).catch((err) => {
+					console.error("Frappe Push: Service Worker registration failed:", err);
+				});
+		} catch (e) {
+			console.error("Firebase Setup Error:", e);
+		}
+	});
+};
+
+frappe_push.register_token = function(token) {
+	frappe.call({
+		method: "frappe_push.frappe_push.api.subscribe",
+		args: {
+			fcm_token: token,
+			browser: navigator.userAgent
+		}
+	});
+};
+
+console.log("Frappe Push Script Execution Started");
+
+$(function() {
+	console.log("Frappe Push: Document Ready (jQuery), checking session...");
+	if (frappe.session.user !== "Guest") {
+		frappe_push.init();
+	} else {
+		console.log("Frappe Push: Guest user, skipping init.");
+	}
+});
