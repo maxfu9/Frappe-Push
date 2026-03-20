@@ -1,7 +1,5 @@
 import frappe
 from frappe.model.document import Document
-import firebase_admin
-from firebase_admin import credentials, messaging
 import json
 import base64
 

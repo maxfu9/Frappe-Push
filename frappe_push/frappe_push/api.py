@@ -1,9 +1,10 @@
 import frappe
-import firebase_admin
-from firebase_admin import credentials, messaging
 import json
 
 def get_fcm_app():
+	import firebase_admin
+	from firebase_admin import credentials
+	
 	try:
 		return firebase_admin.get_app("frappe_push")
 	except ValueError:
@@ -62,6 +63,7 @@ def unsubscribe(fcm_token):
 	return {"success": True}
 
 def send_push_notification(token, title, body, data=None):
+	from firebase_admin import messaging
 	app = get_fcm_app()
 	if not app:
 		return False
