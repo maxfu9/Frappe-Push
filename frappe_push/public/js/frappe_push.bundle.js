@@ -244,9 +244,6 @@ frappe_push.setup_firebase = function(config) {
 								dismiss();
 							}
 						};
-
-						// Auto-dismiss after 8 seconds
-						setTimeout(dismiss, 8000);
 					}
 
 					// Premium Persistent Banner: Stays visible until interacted with
