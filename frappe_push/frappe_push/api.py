@@ -69,15 +69,16 @@ def send_push_notification(token, title, body, data=None):
 		return False
 	
 	try:
-		# Use data-only messages for maximum compatibility and control in Service Worker
-		# Safari and background handling work better when the SW has full control
+		# Hybrid payload for maximum reliability
+		# 'notification' ensures OS-level display (important for Safari/iOS)
+		# 'data' provides custom fields for our Service Worker
 		message_data = data or {}
-		message_data.update({
-			"title": title,
-			"body": body
-		})
 		
 		message = messaging.Message(
+			notification=messaging.Notification(
+				title=title,
+				body=body,
+			),
 			data=message_data,
 			token=token,
 		)
