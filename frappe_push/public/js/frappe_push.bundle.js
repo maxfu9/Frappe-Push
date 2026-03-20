@@ -153,6 +153,81 @@ frappe_push.setup_firebase = function(config) {
 						}
 					}
 
+					// Handle foreground messages
+					messaging.onMessage((payload) => {
+						console.log("Frappe Push: Foreground message received:", payload);
+						show_foreground_notification(payload);
+					});
+
+					function show_foreground_notification(payload) {
+						if (!payload.notification) return;
+						
+						const notify_id = 'push-notify-' + Date.now();
+						const icon = payload.notification.icon || config.siteLogo;
+						const title = payload.notification.title || __('New Notification');
+						const body = payload.notification.body || '';
+						const click_action = payload.data ? payload.data.click_action : null;
+
+						const notify_html = `
+							<div id="${notify_id}" style="
+								position: fixed;
+								top: 20px;
+								right: 20px;
+								width: calc(100% - 40px);
+								max-width: 380px;
+								background: rgba(255, 255, 255, 0.98);
+								backdrop-filter: blur(12px);
+								-webkit-backdrop-filter: blur(12px);
+								border-radius: 20px;
+								padding: 16px;
+								box-shadow: 0 15px 40px rgba(0,0,0,0.12);
+								display: flex;
+								gap: 14px;
+								z-index: 1000000;
+								font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+								cursor: pointer;
+								transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+								transform: translateX(400px);
+								opacity: 0;
+								border: 1px solid rgba(0,0,0,0.05);
+							">
+								<img src="${icon}" style="width: 48px; height: 48px; border-radius: 12px; object-fit: cover;">
+								<div style="flex: 1;">
+									<div style="font-weight: 700; font-size: 15px; color: #1a1a1a; margin-bottom: 4px;">${title}</div>
+									<div style="font-size: 13px; color: #555; line-height: 1.4;">${body}</div>
+								</div>
+								<button class="notify-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #ccc; align-self: flex-start; padding: 0;">&times;</button>
+							</div>
+						`;
+
+						document.body.insertAdjacentHTML('beforeend', notify_html);
+						const el = document.getElementById(notify_id);
+
+						setTimeout(() => {
+							el.style.transform = 'translateX(0)';
+							el.style.opacity = '1';
+						}, 100);
+
+						const dismiss = () => {
+							el.style.transform = 'translateX(400px)';
+							el.style.opacity = '0';
+							setTimeout(() => el.remove(), 400);
+						};
+
+						el.onclick = (e) => {
+							if (e.target.classList.contains('notify-close')) {
+								dismiss();
+							} else if (click_action) {
+								window.location.href = click_action;
+							} else {
+								dismiss();
+							}
+						};
+
+						// Auto-dismiss after 8 seconds
+						setTimeout(dismiss, 8000);
+					}
+
 					// Premium Persistent Banner: Stays visible until interacted with
 					if (Notification.permission === 'default') {
 						show_subscription_banner();
