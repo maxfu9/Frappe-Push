@@ -112,6 +112,22 @@ def send_push_notification(token, title, body, data=None):
 			)
 		return False
 
+def get_device_signature(ua):
+	if not ua:
+		return "unknown"
+	ua = ua.lower()
+	if "iphone" in ua or "ipad" in ua or "ipod" in ua:
+		return "ios"
+	if "android" in ua:
+		return "android"
+	if "macintosh" in ua or "mac os x" in ua:
+		return "macos"
+	if "windows" in ua:
+		return "windows"
+	if "linux" in ua:
+		return "linux"
+	return ua[:50]
+
 @frappe.whitelist()
 def send_notification_to_user(user, title, body, data=None):
 	# DEBUG
@@ -141,18 +157,20 @@ def send_notification_to_user(user, title, body, data=None):
 		frappe.log_error(f"No FCM tokens found for user {user}. Open the app in browser to register.", "Frappe Push Dispatch")
 		return False
 
-	# De-duplicate by device_id and browser
+	# Aggressive de-duplication by OS/Device type
 	unique_tokens = []
-	seen_keys = set()
+	seen_signatures = set()
 	
 	for t in tokens:
-		# Priority Key: Device ID > Browser > Token
-		key = t.device_id or t.browser or t.fcm_token
-		if key not in seen_keys:
+		# Priority 1: Device ID (if available from new bundle.js)
+		# Priority 2: OS Signature (ios, android, macos, etc.)
+		sig = t.device_id or get_device_signature(t.browser)
+		
+		if sig not in seen_signatures:
 			unique_tokens.append(t.fcm_token)
-			seen_keys.add(key)
+			seen_signatures.add(sig)
 	
-	frappe.log_error(f"Found {len(unique_tokens)} unique tokens for user {user}", "Frappe Push Dispatch")
+	frappe.log_error(f"Found {len(unique_tokens)} unique device targets for user {user} (after OS filtering)", "Frappe Push Dispatch")
 	
 	success_count = 0
 	for token in unique_tokens:
