@@ -163,6 +163,12 @@ frappe_push.setup_firebase = function(config) {
 					function show_subscription_banner() {
 						if (document.getElementById('frappe-push-banner')) return;
 
+						const is_guest = frappe.session.user === 'Guest';
+						const title = is_guest ? __('Stay Updated') : __('Direct Alerts');
+						const message = is_guest 
+							? __('Get real-time updates on your orders and exclusive offers from Europlast.')
+							: __('Receive instant alerts for assignments, mentions, and system notifications.');
+
 						const banner_html = `
 							<div id="frappe-push-overlay" style="
 								position: fixed;
@@ -197,11 +203,11 @@ frappe_push.setup_firebase = function(config) {
 								transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
 							">
 								<div style="display: flex; justify-content: space-between; align-items: flex-start;">
-									<div style="font-weight: 700; font-size: 18px; color: #1a1a1a;">${__('Stay Updated')} 🔔</div>
+									<div style="font-weight: 700; font-size: 18px; color: #1a1a1a;">${title} 🔔</div>
 									<button id="push-close" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #bbb; line-height: 1;">&times;</button>
 								</div>
 								<div style="font-size: 15px; color: #444; line-height: 1.5;">
-									${__('Get real-time updates on your orders and exclusive offers from Europlast.')}
+									${message}
 								</div>
 								<button id="push-enable" style="
 									background: #2563eb;
