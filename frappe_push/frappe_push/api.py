@@ -70,7 +70,6 @@ def send_push_notification(token, title, body, data=None):
 	
 	try:
 		# FCM requirements: All keys and values in 'data' must be STRINGS.
-		# Notification title and body must also be strings.
 		clean_data = {}
 		if data:
 			for k, v in data.items():
@@ -89,14 +88,19 @@ def send_push_notification(token, title, body, data=None):
 		response = messaging.send(message, app=app)
 		return True
 	except Exception as e:
-		frappe.log_error(
-			title="FCM Send Error",
-			message=f"Error: {str(e)}\n\nToken: {token}\nData: {json.dumps(data, indent=2)}"
-		)
+		# Only log non-transient errors (NotRegistered is common if users clear browser data)
+		if "NotRegistered" not in str(e):
+			frappe.log_error(
+				title="FCM Send Error",
+				message=f"Error: {str(e)}\n\nToken: {token}\nData: {json.dumps(data, indent=2)}"
+			)
 		return False
 
 @frappe.whitelist()
 def send_notification_to_user(user, title, body, data=None):
+	# DEBUG
+	frappe.log_error(f"Attempting to send notification to user {user}", "Frappe Push Dispatch")
+
 	# Get all tokens for the user, ordered by last used
 	tokens = frappe.get_all("FCM Token", 
 		filters={"user": user}, 
@@ -104,21 +108,27 @@ def send_notification_to_user(user, title, body, data=None):
 		order_by="last_used desc"
 	)
 	
-	# De-duplicate by browser in memory to be extra safe
+	if not tokens:
+		frappe.log_error(f"No FCM tokens found for user {user}. Open the app in browser to register.", "Frappe Push Dispatch")
+		return False
+
+	# De-duplicate by browser in memory
 	unique_tokens = []
 	seen_browsers = set()
 	
 	for t in tokens:
-		# If browser is unknown, treat it as unique
 		browser_key = t.browser or t.fcm_token
 		if browser_key not in seen_browsers:
 			unique_tokens.append(t.fcm_token)
 			seen_browsers.add(browser_key)
 	
+	frappe.log_error(f"Found {len(unique_tokens)} unique tokens for user {user}", "Frappe Push Dispatch")
+	
 	success_count = 0
 	for token in unique_tokens:
 		if send_push_notification(token, title, body, data):
 			success_count += 1
+	
 	return success_count > 0
 
 
@@ -158,12 +168,10 @@ def trigger_notification_log_push(doc, method=None):
 		if not config.enable:
 			return
 
-		# De-duplicate: Assignment notifications are handled by trigger_todo_notification_push
-		if doc.type == "Assignment" or doc.document_type == "ToDo":
-			return
+		# Inclusive logic: Handle all Notification Logs
+		# This is our main reliable trigger
+		frappe.log_error(f"Notification Log Hook Triggered for {doc.for_user}", "Frappe Push Hook")
 		
-		# Call directly (synchronous) for debugging and reliability on VPS without workers
-		# We can switch back to enqueue once we confirm workers are running
 		send_notification_to_user(
 			user=doc.for_user,
 			title=doc.subject or "New Notification",
@@ -172,11 +180,10 @@ def trigger_notification_log_push(doc, method=None):
 				"document_type": getattr(doc, "document_type", ""),
 				"document_name": getattr(doc, "document_name", ""),
 				"type": getattr(doc, "type", ""),
-				"click_action": doc.link or (f"/app/{frappe.scrub(doc.document_type)}/{doc.document_name}" if getattr(doc, "document_type", None) and getattr(doc, "document_name", None) else "/app")
+				"click_action": doc.link or "/app"
 			}
 		)
 	except Exception as e:
-		# Don't break the original notification system if push fails
 		frappe.log_error(f"FCM Push Hook Error: {str(e)}", "Frappe Push Hook Error")
 
 def trigger_todo_notification_push(doc, method=None):
@@ -190,6 +197,8 @@ def trigger_todo_notification_push(doc, method=None):
 		if not config.enable:
 			return
 		
+		frappe.log_error(f"ToDo Hook Triggered for {doc.allocated_to}", "Frappe Push Hook")
+
 		# Build a nice message
 		title = "New Assignment"
 		body = f"A new task has been assigned to you: {doc.description or 'No description'}"
@@ -197,7 +206,6 @@ def trigger_todo_notification_push(doc, method=None):
 			title = f"New {doc.reference_type} Assignment"
 			body = f"{doc.reference_type} {doc.reference_name} has been assigned to you."
 		
-		# Call directly (synchronous)
 		send_notification_to_user(
 			user=doc.allocated_to,
 			title=title,
