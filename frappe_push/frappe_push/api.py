@@ -69,23 +69,30 @@ def send_push_notification(token, title, body, data=None):
 		return False
 	
 	try:
-		# Hybrid payload for maximum reliability
-		# 'notification' ensures OS-level display (important for Safari/iOS)
-		# 'data' provides custom fields for our Service Worker
-		message_data = data or {}
+		# FCM requirements: All keys and values in 'data' must be STRINGS.
+		# Notification title and body must also be strings.
+		clean_data = {}
+		if data:
+			for k, v in data.items():
+				clean_data[str(k)] = str(v) if v is not None else ""
 		
+		# Hybrid payload for maximum reliability
 		message = messaging.Message(
 			notification=messaging.Notification(
-				title=title,
-				body=body,
+				title=str(title or "New Notification"),
+				body=str(body or ""),
 			),
-			data=message_data,
-			token=token,
+			data=clean_data,
+			token=str(token),
 		)
+		
 		response = messaging.send(message, app=app)
 		return True
 	except Exception as e:
-		frappe.log_error(f"FCM Send Error: {str(e)}", "Frappe Push")
+		frappe.log_error(
+			title="FCM Send Error",
+			message=f"Error: {str(e)}\n\nToken: {token}\nData: {json.dumps(data, indent=2)}"
+		)
 		return False
 
 @frappe.whitelist()
