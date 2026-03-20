@@ -152,8 +152,8 @@ frappe_push.setup_firebase = function(config) {
 
 					// Proactive Dialog: Show for everyone (Staff and Guests)
 					if (Notification.permission === 'default') {
-						// STRICT CHECK: On the website, frappe.ui.Dialog exists but is missing desk functions like make_control
-						if (typeof frappe.ui !== 'undefined' && typeof frappe.ui.Dialog !== 'undefined' && typeof frappe.ui.form !== 'undefined') {
+						// STRICT CHECK: On the website, frappe.ui.form exists but is a stub missing make_control
+						if (typeof frappe.ui !== 'undefined' && typeof frappe.ui.Dialog !== 'undefined' && typeof frappe.ui.form !== 'undefined' && typeof frappe.ui.form.make_control !== 'undefined') {
 							const dialog = new frappe.ui.Dialog({
 								title: __('Stay Updated!'),
 								fields: [
