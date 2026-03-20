@@ -82,7 +82,7 @@ def get_fcm_app():
 			frappe.log_error(f"FCM Initialization Error: {str(e)}", "Frappe Push")
 			return None
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def get_public_config():
 	config = frappe.get_single("FCM Config")
 	if not config.enable:
