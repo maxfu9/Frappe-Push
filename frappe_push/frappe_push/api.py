@@ -123,12 +123,18 @@ def send_push_notification(token, title, body, data=None):
 		response = messaging.send(message, app=app)
 		return True
 	except Exception as e:
-		# Only log non-transient errors (NotRegistered is common if users clear browser data)
-		if "NotRegistered" not in str(e):
-			frappe.log_error(
-				title="FCM Send Error",
-				message=f"Error: {str(e)}\n\nToken: {token}\nData: {json.dumps(data, indent=2)}"
-			)
+		error_str = str(e)
+		# Token cleanup: If FCM says the token is invalid or expired, delete it!
+		if "NotRegistered" in error_str or "unregistered" in error_str.lower():
+			frappe.db.delete("FCM Token", {"fcm_token": token})
+			frappe.db.commit()
+			return False
+		
+		# Log other significant errors
+		frappe.log_error(
+			title="FCM Send Error",
+			message=f"Error: {error_str}\n\nToken: {token}\nData: {json.dumps(data, indent=2)}"
+		)
 		return False
 
 def get_device_signature(ua):
