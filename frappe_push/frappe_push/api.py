@@ -258,7 +258,9 @@ def trigger_notification_log_push(doc, method=None):
 		click_action = doc.link or "/app"
 		if doc.document_type and doc.document_name:
 			# Use the standard /app/doctype/name format
-			click_action = f"/app/{frappe.scrub(doc.document_type)}/{doc.document_name}"
+			# URLs use kebab-case (hyphens), not snake_case (underscores)
+			scrubbed_doctype = frappe.scrub(doc.document_type).replace("_", "-")
+			click_action = f"/app/{scrubbed_doctype}/{doc.document_name}"
 		
 		send_notification_to_user(
 			user=doc.for_user,
@@ -314,7 +316,7 @@ def trigger_todo_notification_push(doc, method=None):
 				"document_type": doc.reference_type,
 				"document_name": doc.reference_name,
 				"type": "Assignment",
-				"click_action": f"/app/{frappe.scrub(doc.reference_type)}/{doc.reference_name}" if doc.reference_type and doc.reference_name else "/app/todo"
+				"click_action": f"/app/{frappe.scrub(doc.reference_type).replace('_', '-')}/{doc.reference_name}" if doc.reference_type and doc.reference_name else "/app/todo"
 			}
 		)
 	except Exception as e:
