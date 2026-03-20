@@ -153,34 +153,80 @@ frappe_push.setup_firebase = function(config) {
 						}
 					}
 
-					// Proactive Dialog: Show for everyone (Staff and Guests)
+					// Premium Persistent Banner: Stays visible until interacted with
 					if (Notification.permission === 'default') {
-						// STRICT CHECK: On the website, frappe.ui.form exists but is a stub missing make_control
-						if (typeof frappe.ui !== 'undefined' && typeof frappe.ui.Dialog !== 'undefined' && typeof frappe.ui.form !== 'undefined' && typeof frappe.ui.form.make_control !== 'undefined') {
-							const dialog = new frappe.ui.Dialog({
-								title: __('Stay Updated!'),
-								fields: [
-									{
-										fieldname: 'info',
-										fieldtype: 'HTML',
-										options: `<p>${__('Get real-time updates on your orders and exclusive offers from Europlast.')}</p>`
-									}
-								],
-								primary_action_label: __('Enable Now'),
-								primary_action(values) {
-									request_and_get_token(false);
-									dialog.hide();
-								}
-							});
-							dialog.show();
-						} else {
-							// Website Fallback: Standard browser confirm if Frappe UI is missing
-							if (confirm(__('Would you like to receive push notifications for order updates and exclusive offers?'))) {
-								request_and_get_token(false);
-							}
-						}
+						show_subscription_banner();
 					} else if (Notification.permission === 'granted') {
 						request_and_get_token(true);
+					}
+
+					function show_subscription_banner() {
+						if (document.getElementById('frappe-push-banner')) return;
+
+						const banner_html = `
+							<div id="frappe-push-banner" style="
+								position: fixed;
+								bottom: 20px;
+								left: 20px;
+								right: 20px;
+								max-width: 400px;
+								background: rgba(255, 255, 255, 0.95);
+								backdrop-filter: blur(10px);
+								-webkit-backdrop-filter: blur(10px);
+								border: 1px solid rgba(0, 0, 0, 0.1);
+								border-radius: 16px;
+								padding: 20px;
+								box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+								display: flex;
+								flex-direction: column;
+								gap: 12px;
+								z-index: 999999;
+								font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+								transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+								transform: translateY(100px);
+								opacity: 0;
+							">
+								<div style="display: flex; justify-content: space-between; align-items: flex-start;">
+									<div style="font-weight: 600; font-size: 16px; color: #1a1a1a;">${__('Stay Updated')} 🔔</div>
+									<button id="push-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #999; line-height: 1;">&times;</button>
+								</div>
+								<div style="font-size: 14px; color: #666; line-height: 1.4;">
+									${__('Get real-time updates on your orders and exclusive offers from Europlast.')}
+								</div>
+								<button id="push-enable" style="
+									background: #2563eb;
+									color: white;
+									border: none;
+									border-radius: 8px;
+									padding: 10px 16px;
+									font-weight: 600;
+									cursor: pointer;
+									transition: background 0.2s;
+								">${__('Enable Notifications')}</button>
+							</div>
+						`;
+
+						document.body.insertAdjacentHTML('beforeend', banner_html);
+						const banner = document.getElementById('frappe-push-banner');
+						
+						// Animate in
+						setTimeout(() => {
+							banner.style.transform = 'translateY(0)';
+							banner.style.opacity = '1';
+						}, 100);
+
+						document.getElementById('push-enable').onclick = () => {
+							request_and_get_token(false);
+							dismiss_banner();
+						};
+
+						document.getElementById('push-close').onclick = dismiss_banner;
+
+						function dismiss_banner() {
+							banner.style.transform = 'translateY(100px)';
+							banner.style.opacity = '0';
+							setTimeout(() => banner.remove(), 300);
+						}
 					}
 				}).catch((err) => {
 					console.error("Frappe Push: Service Worker registration failed:", err);
