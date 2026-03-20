@@ -10,9 +10,7 @@ frappe_push.init = function() {
 		return;
 	}
 
-	if (localStorage.getItem("frappe_push_subscribed") === "true" && Notification.permission === "granted") {
-		console.log("Frappe Push: Already subscribed in this browser session. Updating token in background...");
-	} else if (Notification.permission === "denied") {
+	if (Notification.permission === "denied") {
 		console.warn("Frappe Push: Notifications are BLOCKED by the browser. Please reset permissions in the address bar (lock icon).");
 		return;
 	}
@@ -136,12 +134,11 @@ frappe_push.setup_firebase = function(config) {
 						}
 					}
 
-					if (Notification.permission === 'default' || (Notification.permission === 'granted' && localStorage.getItem("frappe_push_subscribed") !== "true")) {
-						if (Notification.permission === 'granted') {
-							request_and_get_token(true);
-							return;
-						}
-
+					// PROACTIVE DIALOG LOGIC:
+					// 1. If permission is 'default', always show the soft-prompt (dialog).
+					// 2. If permission is 'granted' but we don't have a record of it (localStorage), silently try to get the token.
+					
+					if (Notification.permission === 'default') {
 						const dialog = new frappe.ui.Dialog({
 							title: __('Enable Push Notifications'),
 							fields: [
@@ -159,6 +156,7 @@ frappe_push.setup_firebase = function(config) {
 						});
 						dialog.show();
 					} else if (Notification.permission === 'granted') {
+						// Permission is granted, but let's ensure we have a fresh token
 						request_and_get_token(true);
 					}
 				}).catch((err) => {
