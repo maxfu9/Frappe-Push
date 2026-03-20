@@ -232,13 +232,20 @@ def trigger_notification_log_push(doc, method=None):
 			return
 
 		# Inclusive logic: Handle all Notification Logs
-		# This is our main reliable trigger
 		frappe.log_error(f"Notification Log Hook Triggered for {doc.for_user}", "Frappe Push Hook")
+		
+		# NATIVE REFINE: 
+		# Title: Just the document ID or subject
+		# Body: The actual content
+		title = doc.document_name or doc.subject or "New Alert"
+		body = doc.subject if doc.document_name else "New Alert"
+		if doc.email_content:
+			body = frappe.utils.strip_html(doc.email_content)
 		
 		send_notification_to_user(
 			user=doc.for_user,
-			title=doc.subject or "New Notification",
-			body=frappe.utils.strip_html(doc.email_content or doc.subject or "New Notification"),
+			title=title,
+			body=body,
 			data={
 				"document_type": getattr(doc, "document_type", ""),
 				"document_name": getattr(doc, "document_name", ""),
@@ -262,12 +269,14 @@ def trigger_todo_notification_push(doc, method=None):
 		
 		frappe.log_error(f"ToDo Hook Triggered for {doc.allocated_to}", "Frappe Push Hook")
 
-		# Build a nice message
-		title = "New Assignment"
-		body = f"A new task has been assigned to you: {doc.description or 'No description'}"
+		# NATIVE REFINE:
+		# Title: Document ID (e.g. TODO-123 or SO-001)
+		# Body: Concise action
+		title = doc.name
+		body = doc.description or "New Assignment"
 		if doc.reference_type and doc.reference_name:
-			title = f"New {doc.reference_type} Assignment"
-			body = f"{doc.reference_type} {doc.reference_name} has been assigned to you."
+			title = doc.reference_name
+			body = f"New {doc.reference_type} Assignment"
 		
 		send_notification_to_user(
 			user=doc.allocated_to,
