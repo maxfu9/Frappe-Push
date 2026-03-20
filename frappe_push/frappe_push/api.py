@@ -85,10 +85,27 @@ def send_push_notification(token, title, body, data=None):
 
 @frappe.whitelist()
 def send_notification_to_user(user, title, body, data=None):
-	tokens = frappe.get_all("FCM Token", filters={"user": user}, fields=["fcm_token"])
-	success_count = 0
+	# Get all tokens for the user, ordered by last used
+	tokens = frappe.get_all("FCM Token", 
+		filters={"user": user}, 
+		fields=["fcm_token", "browser"],
+		order_by="last_used desc"
+	)
+	
+	# De-duplicate by browser in memory to be extra safe
+	unique_tokens = []
+	seen_browsers = set()
+	
 	for t in tokens:
-		if send_push_notification(t.fcm_token, title, body, data):
+		# If browser is unknown, treat it as unique
+		browser_key = t.browser or t.fcm_token
+		if browser_key not in seen_browsers:
+			unique_tokens.append(t.fcm_token)
+			seen_browsers.add(browser_key)
+	
+	success_count = 0
+	for token in unique_tokens:
+		if send_push_notification(token, title, body, data):
 			success_count += 1
 	return success_count > 0
 
