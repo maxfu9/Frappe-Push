@@ -236,11 +236,20 @@ def trigger_notification_log_push(doc, method=None):
 		
 		# NATIVE REFINE: 
 		# Title: Just the document ID or subject
-		# Body: The actual content
+		# Body: Who assigned what
 		title = doc.document_name or doc.subject or "New Alert"
-		body = doc.subject if doc.document_name else "New Alert"
-		if doc.email_content:
-			body = frappe.utils.strip_html(doc.email_content)
+		
+		from_user_name = frappe.db.get_value("User", doc.from_user, "full_name") or doc.from_user
+		body = f"Assigned by {from_user_name}"
+		if doc.subject and not doc.document_name:
+			body = f"{doc.subject} (from {from_user_name})"
+		elif doc.email_content:
+			# If there's long content, prepend the sender
+			body = f"{from_user_name}: {frappe.utils.strip_html(doc.email_content)}"
+		
+		# Keep it concise for mobile
+		if len(body) > 120:
+			body = body[:117] + "..."
 		
 		send_notification_to_user(
 			user=doc.for_user,
@@ -270,13 +279,23 @@ def trigger_todo_notification_push(doc, method=None):
 		frappe.log_error(f"ToDo Hook Triggered for {doc.allocated_to}", "Frappe Push Hook")
 
 		# NATIVE REFINE:
-		# Title: Document ID (e.g. TODO-123 or SO-001)
-		# Body: Concise action
+		# Title: Document ID
+		# Body: Assigned by [User]
 		title = doc.name
-		body = doc.description or "New Assignment"
+		
+		assigned_by = frappe.db.get_value("User", doc.owner, "full_name") or doc.owner
+		body = f"Assigned by {assigned_by}"
+		
 		if doc.reference_type and doc.reference_name:
 			title = doc.reference_name
-			body = f"New {doc.reference_type} Assignment"
+			body = f"New {doc.reference_type} assigned by {assigned_by}"
+		
+		if doc.description:
+			body += f": {doc.description}"
+
+		# Keep it concise
+		if len(body) > 120:
+			body = body[:117] + "..."
 		
 		send_notification_to_user(
 			user=doc.allocated_to,
