@@ -164,56 +164,69 @@ frappe_push.setup_firebase = function(config) {
 						if (document.getElementById('frappe-push-banner')) return;
 
 						const banner_html = `
+							<div id="frappe-push-overlay" style="
+								position: fixed;
+								top: 0;
+								left: 0;
+								width: 100%;
+								height: 100%;
+								background: rgba(0, 0, 0, 0.4);
+								backdrop-filter: blur(4px);
+								-webkit-backdrop-filter: blur(4px);
+								z-index: 999998;
+								opacity: 0;
+								transition: opacity 0.3s ease;
+							"></div>
 							<div id="frappe-push-banner" style="
 								position: fixed;
-								bottom: 20px;
-								left: 20px;
-								right: 20px;
+								top: 50%;
+								left: 50%;
+								transform: translate(-50%, -40%);
+								width: calc(100% - 40px);
 								max-width: 400px;
-								background: rgba(255, 255, 255, 0.95);
-								backdrop-filter: blur(10px);
-								-webkit-backdrop-filter: blur(10px);
-								border: 1px solid rgba(0, 0, 0, 0.1);
-								border-radius: 16px;
-								padding: 20px;
-								box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+								background: rgba(255, 255, 255, 0.98);
+								border-radius: 20px;
+								padding: 24px;
+								box-shadow: 0 20px 50px rgba(0,0,0,0.15);
 								display: flex;
 								flex-direction: column;
-								gap: 12px;
+								gap: 16px;
 								z-index: 999999;
 								font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-								transition: transform 0.3s ease-out, opacity 0.3s ease-out;
-								transform: translateY(100px);
 								opacity: 0;
+								transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
 							">
 								<div style="display: flex; justify-content: space-between; align-items: flex-start;">
-									<div style="font-weight: 600; font-size: 16px; color: #1a1a1a;">${__('Stay Updated')} 🔔</div>
-									<button id="push-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #999; line-height: 1;">&times;</button>
+									<div style="font-weight: 700; font-size: 18px; color: #1a1a1a;">${__('Stay Updated')} 🔔</div>
+									<button id="push-close" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #bbb; line-height: 1;">&times;</button>
 								</div>
-								<div style="font-size: 14px; color: #666; line-height: 1.4;">
+								<div style="font-size: 15px; color: #444; line-height: 1.5;">
 									${__('Get real-time updates on your orders and exclusive offers from Europlast.')}
 								</div>
 								<button id="push-enable" style="
 									background: #2563eb;
 									color: white;
 									border: none;
-									border-radius: 8px;
-									padding: 10px 16px;
+									border-radius: 12px;
+									padding: 12px 20px;
 									font-weight: 600;
+									font-size: 16px;
 									cursor: pointer;
-									transition: background 0.2s;
+									transition: transform 0.1s, background 0.2s;
 								">${__('Enable Notifications')}</button>
 							</div>
 						`;
 
 						document.body.insertAdjacentHTML('beforeend', banner_html);
 						const banner = document.getElementById('frappe-push-banner');
+						const overlay = document.getElementById('frappe-push-overlay');
 						
 						// Animate in
 						setTimeout(() => {
-							banner.style.transform = 'translateY(0)';
+							overlay.style.opacity = '1';
+							banner.style.transform = 'translate(-50%, -50%)';
 							banner.style.opacity = '1';
-						}, 100);
+						}, 50);
 
 						document.getElementById('push-enable').onclick = () => {
 							request_and_get_token(false);
@@ -221,11 +234,16 @@ frappe_push.setup_firebase = function(config) {
 						};
 
 						document.getElementById('push-close').onclick = dismiss_banner;
+						overlay.onclick = dismiss_banner;
 
 						function dismiss_banner() {
-							banner.style.transform = 'translateY(100px)';
+							overlay.style.opacity = '0';
+							banner.style.transform = 'translate(-50%, -40%)';
 							banner.style.opacity = '0';
-							setTimeout(() => banner.remove(), 300);
+							setTimeout(() => {
+								banner.remove();
+								overlay.remove();
+							}, 400);
 						}
 					}
 				}).catch((err) => {
@@ -258,8 +276,8 @@ frappe_push.register_token = function(token) {
 console.log("Frappe Push Script Execution Started");
 
 $(function() {
-	// Delayed start to ensure page is settled (especially on Website/Login)
-	setTimeout(() => {
+	// Trigger only after user's FIRST click on the page
+	$(document).one('click', function() {
 		frappe_push.init();
-	}, 1000);
+	});
 });
