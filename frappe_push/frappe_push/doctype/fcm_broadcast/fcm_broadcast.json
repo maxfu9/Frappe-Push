@@ -1,0 +1,102 @@
+{
+ "actions": [],
+ "autoname": "format:PROMO-{#####}",
+ "creation": "2026-03-21 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "message",
+  "click_action",
+  "target",
+  "cb0",
+  "status",
+  "sent_count",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Push Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "message",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Push Message",
+   "reqd": 1
+  },
+  {
+   "default": "/app",
+   "fieldname": "click_action",
+   "fieldtype": "Data",
+   "label": "Click Action URL"
+  },
+  {
+   "default": "Both",
+   "fieldname": "target",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Target Audience",
+   "options": "Both\nGuests\nStaff",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cb0",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Draft\nSent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sent_count",
+   "fieldtype": "Int",
+   "label": "Sent Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "FCM Broadcast",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-21 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Frappe Push",
+ "name": "FCM Broadcast",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
