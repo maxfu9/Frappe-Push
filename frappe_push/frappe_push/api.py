@@ -94,7 +94,7 @@ def send_push_notification(token, title, body, data=None):
 			# Platform-specific options for better reliability
 			webpush=messaging.WebpushConfig(
 				fcm_options=messaging.WebpushFCMOptions(
-					link=click_action
+					link=frappe.utils.get_url(click_action)
 				)
 			),
 			data=clean_data,
