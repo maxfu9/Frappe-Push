@@ -2,6 +2,9 @@ frappe.provide("frappe_push");
 console.log("Frappe Push script loaded from /assets/frappe_push/js/frappe_push.js");
 
 frappe_push.init = function() {
+	if (window.frappe_push_initialized) return;
+	window.frappe_push_initialized = true;
+
 	console.log("Frappe Push initializing for user:", frappe.session.user);
 	console.log("Current Notification Permission:", Notification.permission);
 	
@@ -209,6 +212,8 @@ frappe_push.register_token = function(token) {
 console.log("Frappe Push Script Execution Started");
 
 $(function() {
-	// Guest and Staff can both subscribe!
-	frappe_push.init();
+	// Delayed start to ensure page is settled (especially on Website/Login)
+	setTimeout(() => {
+		frappe_push.init();
+	}, 1000);
 });
