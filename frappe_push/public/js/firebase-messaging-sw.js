@@ -22,17 +22,18 @@ try {
 		messaging.onBackgroundMessage((payload) => {
 		  console.log('[firebase-messaging-sw.js] Received background message ', payload);
 		  
-		  const notificationTitle = payload.notification ? payload.notification.title : (payload.data ? payload.data.title : "New Notification");
-		  const notificationBody = payload.notification ? payload.notification.body : (payload.data ? payload.data.body : "");
-		  
+		  // Data-only payload support
 		  const data = payload.data || {};
+		  const notificationTitle = data.title || (payload.notification ? payload.notification.title : "New Notification");
+		  const notificationBody = data.body || (payload.notification ? payload.notification.body : "");
+		  
 		  const notificationOptions = {
 		    body: notificationBody,
 		    icon: data.notification_icon || '/assets/frappe/images/frappe-favicon.png',
 		    data: {
 		        click_action: data.click_action || '/app'
 		    },
-		    tag: data.document_name || 'frappe-push-notification',
+		    tag: data.document_name || data.document_type || 'frappe-push-notification',
 		    renotify: true
 		  };
 

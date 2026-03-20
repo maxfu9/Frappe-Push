@@ -48,10 +48,20 @@ frappe_push.setup_firebase = function(config) {
 			// Handle foreground messages
 			messaging.onMessage((payload) => {
 				console.log('Frappe Push: Received foreground message ', payload);
-				const notificationTitle = payload.notification.title;
+				
+				// De-duplicate: Only show notification in the active tab
+				if (document.visibilityState !== 'visible') {
+					console.log('Frappe Push: Tab is background, skipping foreground alert.');
+					return;
+				}
+
+				const data = payload.notification || payload.data || {};
+				const notificationTitle = data.title || "New Notification";
+				const notificationBody = data.body || "";
+				
 				const notificationOptions = {
-					body: payload.notification.body,
-					icon: payload.data ? payload.data.notification_icon : '/assets/frappe/images/frappe-favicon.png'
+					body: notificationBody,
+					icon: data.notification_icon || '/assets/frappe/images/frappe-favicon.png'
 				};
 				
 				// Show a desktop notification even in foreground
@@ -61,7 +71,7 @@ frappe_push.setup_firebase = function(config) {
 				
 				// Also show a Frappe alert
 				frappe.show_alert({
-					message: `<b>${notificationTitle}</b><br>${notificationOptions.body}`,
+					message: `<b>${notificationTitle}</b><br>${notificationBody}`,
 					indicator: 'blue'
 				});
 			});
@@ -69,12 +79,10 @@ frappe_push.setup_firebase = function(config) {
 			navigator.serviceWorker.register('/api/method/frappe_push.frappe_push.api.get_service_worker', { scope: '/' })
 				.then((registration) => {
 					console.log("Frappe Push: Service Worker registered with scope:", registration.scope);
-					
-					// Wait for the service worker to be ready/active
 					return navigator.serviceWorker.ready;
 				})
 				.then((registration) => {
-					// Wait an additional second to ensure everything is stable
+					// Wait a moment for consistency
 					return new Promise(resolve => setTimeout(() => resolve(registration), 1000));
 				})
 				.then((registration) => {
@@ -83,7 +91,6 @@ frappe_push.setup_firebase = function(config) {
 							frappe.show_alert({message: __('Requesting permission...'), indicator: 'blue'});
 						}
 						
-						// Safari fix: handle both Promise and Callback
 						const handlePermission = (permission) => {
 							if (permission === 'granted') {
 								if (!silent) {
@@ -130,7 +137,6 @@ frappe_push.setup_firebase = function(config) {
 
 					if (Notification.permission === 'default' || (Notification.permission === 'granted' && localStorage.getItem("frappe_push_subscribed") !== "true")) {
 						if (Notification.permission === 'granted') {
-							// Already granted but no token recorded in this session? Refresh silently.
 							request_and_get_token(true);
 							return;
 						}
@@ -152,7 +158,6 @@ frappe_push.setup_firebase = function(config) {
 						});
 						dialog.show();
 					} else if (Notification.permission === 'granted') {
-						// Already subscribed, just refresh token in background silently
 						request_and_get_token(true);
 					}
 				}).catch((err) => {
@@ -177,10 +182,7 @@ frappe_push.register_token = function(token) {
 console.log("Frappe Push Script Execution Started");
 
 $(function() {
-	console.log("Frappe Push: Document Ready (jQuery), checking session...");
 	if (frappe.session.user !== "Guest") {
 		frappe_push.init();
-	} else {
-		console.log("Frappe Push: Guest user, skipping init.");
 	}
 });

@@ -69,12 +69,16 @@ def send_push_notification(token, title, body, data=None):
 		return False
 	
 	try:
+		# Use data-only messages for maximum compatibility and control in Service Worker
+		# Safari and background handling work better when the SW has full control
+		message_data = data or {}
+		message_data.update({
+			"title": title,
+			"body": body
+		})
+		
 		message = messaging.Message(
-			notification=messaging.Notification(
-				title=title,
-				body=body,
-			),
-			data=data or {},
+			data=message_data,
 			token=token,
 		)
 		response = messaging.send(message, app=app)
@@ -157,10 +161,10 @@ def trigger_notification_log_push(doc, method=None):
 			title=doc.subject or "New Notification",
 			body=frappe.utils.strip_html(doc.email_content or doc.subject or "New Notification"),
 			data={
-				"document_type": doc.document_type,
-				"document_name": doc.document_name,
-				"type": doc.type,
-				"click_action": doc.link or (f"/app/{frappe.scrub(doc.document_type)}/{doc.document_name}" if doc.document_type and doc.document_name else "/app")
+				"document_type": getattr(doc, "document_type", ""),
+				"document_name": getattr(doc, "document_name", ""),
+				"type": getattr(doc, "type", ""),
+				"click_action": doc.link or (f"/app/{frappe.scrub(doc.document_type)}/{doc.document_name}" if getattr(doc, "document_type", None) and getattr(doc, "document_name", None) else "/app")
 			},
 			now=frappe.flags.in_test
 		)
