@@ -248,12 +248,17 @@ def trigger_notification_log_push(doc, method=None):
 		if doc.subject and not doc.document_name:
 			body = f"{doc.subject} (from {from_user_name})"
 		elif doc.email_content:
-			# If there's long content, prepend the sender
 			body = f"{from_user_name}: {frappe.utils.strip_html(doc.email_content)}"
 		
-		# Keep it concise for mobile
 		if len(body) > 120:
 			body = body[:117] + "..."
+
+		# ROBUST LINK GENERATION:
+		# If doc.document_type and doc.document_name are present, use them!
+		click_action = doc.link or "/app"
+		if doc.document_type and doc.document_name:
+			# Use the standard /app/doctype/name format
+			click_action = f"/app/{frappe.scrub(doc.document_type)}/{doc.document_name}"
 		
 		send_notification_to_user(
 			user=doc.for_user,
@@ -263,7 +268,7 @@ def trigger_notification_log_push(doc, method=None):
 				"document_type": getattr(doc, "document_type", ""),
 				"document_name": getattr(doc, "document_name", ""),
 				"type": getattr(doc, "type", ""),
-				"click_action": doc.link or "/app"
+				"click_action": click_action
 			}
 		)
 	except Exception as e:
