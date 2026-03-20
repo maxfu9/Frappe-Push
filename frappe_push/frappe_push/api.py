@@ -162,9 +162,9 @@ def trigger_notification_log_push(doc, method=None):
 		if doc.type == "Assignment" or doc.document_type == "ToDo":
 			return
 		
-		# Enqueue the push to avoid blocking the main thread
-		frappe.enqueue(
-			"frappe_push.frappe_push.api.send_notification_to_user",
+		# Call directly (synchronous) for debugging and reliability on VPS without workers
+		# We can switch back to enqueue once we confirm workers are running
+		send_notification_to_user(
 			user=doc.for_user,
 			title=doc.subject or "New Notification",
 			body=frappe.utils.strip_html(doc.email_content or doc.subject or "New Notification"),
@@ -173,8 +173,7 @@ def trigger_notification_log_push(doc, method=None):
 				"document_name": getattr(doc, "document_name", ""),
 				"type": getattr(doc, "type", ""),
 				"click_action": doc.link or (f"/app/{frappe.scrub(doc.document_type)}/{doc.document_name}" if getattr(doc, "document_type", None) and getattr(doc, "document_name", None) else "/app")
-			},
-			now=frappe.flags.in_test
+			}
 		)
 	except Exception as e:
 		# Don't break the original notification system if push fails
@@ -198,9 +197,8 @@ def trigger_todo_notification_push(doc, method=None):
 			title = f"New {doc.reference_type} Assignment"
 			body = f"{doc.reference_type} {doc.reference_name} has been assigned to you."
 		
-		# Enqueue the push
-		frappe.enqueue(
-			"frappe_push.frappe_push.api.send_notification_to_user",
+		# Call directly (synchronous)
+		send_notification_to_user(
 			user=doc.allocated_to,
 			title=title,
 			body=frappe.utils.strip_html(body),
@@ -209,8 +207,7 @@ def trigger_todo_notification_push(doc, method=None):
 				"document_name": doc.reference_name,
 				"type": "Assignment",
 				"click_action": f"/app/{frappe.scrub(doc.reference_type)}/{doc.reference_name}" if doc.reference_type and doc.reference_name else "/app/todo"
-			},
-			now=frappe.flags.in_test
+			}
 		)
 	except Exception as e:
 		frappe.log_error(f"ToDo FCM Hook Error: {str(e)}", "Frappe Push Hook Error")
