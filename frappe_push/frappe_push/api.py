@@ -1,5 +1,62 @@
 import frappe
 import json
+from frappe import _
+
+@frappe.whitelist()
+def send_promo_broadcast(title, message, click_action="/app"):
+	"""
+	Sends a push notification to ALL subscribers in the database.
+	Used for marketing and flash sales.
+	Only Administrators and System Managers can call this.
+	"""
+	if frappe.session.user != "Administrator" and "System Manager" not in frappe.get_roles():
+		frappe.throw(_("Not authorized to send broadcasts."))
+
+	import firebase_admin
+	from firebase_admin import messaging
+	
+	app = get_fcm_app()
+	if not app:
+		frappe.throw(_("FCM is not configured or enabled."))
+
+	# Fetch all unique tokens
+	tokens = frappe.db.get_all("FCM Token", fields=["fcm_token"])
+	token_list = [t.fcm_token for t in tokens if t.fcm_token]
+
+	if not token_list:
+		return {"status": "error", "message": "No subscribers found."}
+
+	# FCM Multicast Limit: 500 tokens per batch
+	success_count = 0
+	for i in range(0, len(token_list), 500):
+		batch = token_list[i:i + 500]
+		
+		# Build a simple notification
+		# Using Website icon for branding
+		site_logo = frappe.db.get_single_value("Website Settings", "app_logo") or "/assets/frappe/images/frappe-favicon.png"
+		icon_url = frappe.utils.get_url(site_logo)
+
+		multicast_message = messaging.MulticastMessage(
+			notification=messaging.Notification(
+				title=str(title),
+				body=str(message),
+			),
+			webpush=messaging.WebpushConfig(
+				notification=messaging.WebpushNotification(
+					icon=icon_url,
+					badge=icon_url
+				),
+				fcm_options=messaging.WebpushFCMOptions(
+					link=frappe.utils.get_url(click_action)
+				)
+			),
+			tokens=batch,
+		)
+		
+		response = messaging.send_each_for_multicast(multicast_message, app=app)
+		success_count += response.success_count
+
+	return {"status": "success", "sent_count": success_count}
 
 def get_fcm_app():
 	import firebase_admin
@@ -39,20 +96,18 @@ def get_public_config():
 		"siteLogo": frappe.utils.get_url(site_logo)
 	}
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def subscribe(fcm_token, browser=None, device_id=None):
 	user = frappe.session.user
 	if user == "Guest":
-		return {"success": False, "message": "Not logged in"}
+		user = None
 	
-	# De-duplicate by both browser AND device_id if available
+	# De-duplicate: If this token OR device_id already exists, remove old ones
+	# We prioritize keeping the newest subscription for a device
 	if device_id:
-		frappe.db.delete("FCM Token", {"user": user, "device_id": device_id})
+		frappe.db.delete("FCM Token", {"device_id": device_id})
 	
-	if browser:
-		frappe.db.delete("FCM Token", {"user": user, "browser": browser})
-	
-	# Special case: delete exact same token
+	# Special case: delete exact same token if it exists elsewhere
 	frappe.db.delete("FCM Token", {"fcm_token": fcm_token})
 	
 	# Insert new token
@@ -65,6 +120,7 @@ def subscribe(fcm_token, browser=None, device_id=None):
 		"last_used": frappe.utils.now_datetime()
 	})
 	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
 	
 	return {"success": True}
 
@@ -152,6 +208,41 @@ def get_device_signature(ua):
 	if "linux" in ua:
 		return "linux"
 	return ua[:50]
+
+@frappe.whitelist(allow_guest=True)
+def trigger_guest_order_push(doc, method=None):
+	"""
+	Hook to notify guest customers about their order status.
+	Requires fcm_device_id to be stored on the Sales Order.
+	"""
+	if not hasattr(doc, "fcm_device_id") or not doc.fcm_device_id:
+		return
+	
+	import firebase_admin
+	from firebase_admin import messaging
+	
+	# Find token for this device_id
+	token = frappe.db.get_value("FCM Token", {"device_id": doc.fcm_device_id}, "fcm_token")
+	if not token:
+		return
+	
+	title = f"Order {doc.name} Update"
+	body = f"Your order has been updated. Status: {doc.status}"
+	
+	if method == "on_submit":
+		title = f"Order {doc.name} Confirmed! 🎉"
+		body = f"Thank you! Your order {doc.name} has been confirmed and is being processed."
+
+	send_push_notification(
+		token=token,
+		title=title,
+		body=body,
+		data={
+			"document_type": "Sales Order",
+			"document_name": doc.name,
+			"click_action": f"/app/sales-order/{doc.name}"
+		}
+	)
 
 @frappe.whitelist()
 def send_notification_to_user(user, title, body, data=None):

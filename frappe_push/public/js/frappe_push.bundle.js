@@ -150,15 +150,15 @@ frappe_push.setup_firebase = function(config) {
 						}
 					}
 
-					// Proactive Dialog: Re-show whenever state is default (reset)
+					// Proactive Dialog: Show for everyone (Staff and Guests)
 					if (Notification.permission === 'default') {
 						const dialog = new frappe.ui.Dialog({
-							title: __('Enable Push Notifications'),
+							title: __('Stay Updated!'),
 							fields: [
 								{
 									fieldname: 'info',
 									fieldtype: 'HTML',
-									options: `<p>${__('Stay updated with real-time alerts for assignments, mentions, and more.')}</p>`
+									options: `<p>${__('Get real-time updates on your orders and exclusive offers from Europlast.')}</p>`
 								}
 							],
 							primary_action_label: __('Enable Now'),
@@ -201,7 +201,6 @@ frappe_push.register_token = function(token) {
 console.log("Frappe Push Script Execution Started");
 
 $(function() {
-	if (frappe.session.user !== "Guest") {
-		frappe_push.init();
-	}
+	// Guest and Staff can both subscribe!
+	frappe_push.init();
 });

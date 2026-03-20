@@ -143,6 +143,10 @@ doc_events = {
 	},
 	"ToDo": {
 		"after_insert": "frappe_push.frappe_push.api.trigger_todo_notification_push"
+	},
+	"Sales Order": {
+		"on_submit": "frappe_push.frappe_push.api.trigger_guest_order_push",
+		"on_update_after_submit": "frappe_push.frappe_push.api.trigger_guest_order_push"
 	}
 }
 
