@@ -146,6 +146,10 @@ doc_events = {
 	}
 }
 
+website_route_rules = [
+	{"from_route": "/firebase-messaging-sw.js", "to_route": "frappe_push.frappe_push.api.get_service_worker"}
+]
+
 # Scheduled Tasks
 # ---------------
 

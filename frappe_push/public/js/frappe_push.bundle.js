@@ -76,7 +76,8 @@ frappe_push.setup_firebase = function(config) {
 				});
 			});
 
-			navigator.serviceWorker.register('/api/method/frappe_push.frappe_push.api.get_service_worker', { scope: '/' })
+			// Safari Fix: Register from root for maximum compatibility
+			navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' })
 				.then((registration) => {
 					console.log("Frappe Push: Service Worker registered with scope:", registration.scope);
 					return navigator.serviceWorker.ready;
