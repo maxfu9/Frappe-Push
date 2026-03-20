@@ -185,10 +185,11 @@ frappe_push.setup_firebase = function(config) {
 								backdrop-filter: blur(12px);
 								-webkit-backdrop-filter: blur(12px);
 								border-radius: 20px;
-								padding: 16px;
+								padding: 24px;
 								box-shadow: 0 15px 40px rgba(0,0,0,0.12);
 								display: flex;
-								gap: 14px;
+								flex-direction: column;
+								gap: 16px;
 								z-index: 1000000;
 								font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 								cursor: pointer;
@@ -197,12 +198,25 @@ frappe_push.setup_firebase = function(config) {
 								opacity: 0;
 								border: 1px solid rgba(0,0,0,0.05);
 							">
-								<img src="${icon}" style="width: 48px; height: 48px; border-radius: 12px; object-fit: cover;">
-								<div style="flex: 1;">
-									<div style="font-weight: 700; font-size: 15px; color: #1a1a1a; margin-bottom: 4px;">${title}</div>
-									<div style="font-size: 13px; color: #555; line-height: 1.4;">${body}</div>
+								<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+									<div style="font-weight: 700; font-size: 16px; color: #1a1a1a;">${title}</div>
+									<button class="notify-close" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #bbb; line-height: 1; padding: 0;">&times;</button>
 								</div>
-								<button class="notify-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #ccc; align-self: flex-start; padding: 0;">&times;</button>
+								<div style="font-size: 14px; color: #444; line-height: 1.5;">${body}</div>
+								${click_action ? `
+									<button class="notify-action" style="
+										background: #2563eb;
+										color: white;
+										border: none;
+										border-radius: 12px;
+										padding: 10px 16px;
+										font-weight: 600;
+										font-size: 14px;
+										cursor: pointer;
+										width: fit-content;
+										transition: background 0.2s;
+									">${__('Open Details')}</button>
+								` : ''}
 							</div>
 						`;
 
@@ -226,6 +240,7 @@ frappe_push.setup_firebase = function(config) {
 							} else if (click_action) {
 								window.location.href = click_action;
 							} else {
+								// For non-link notifications, click anywhere to dismiss
 								dismiss();
 							}
 						};
