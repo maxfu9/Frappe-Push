@@ -391,3 +391,7 @@ def trigger_notification_log_push(doc, method=None):
 		)
 	except Exception as e:
 		frappe.log_error(f"FCM Push Hook Error: {str(e)}", "Frappe Push Hook Error")
+
+def trigger_todo_notification_push(doc, method=None):
+	"""Placeholder to prevent AttributeError after hook removal until cache is cleared"""
+	pass
