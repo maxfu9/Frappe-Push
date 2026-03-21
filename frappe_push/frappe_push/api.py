@@ -172,9 +172,16 @@ def send_push_notification(token, title, body, data=None):
 			),
 			# Platform-specific options for better reliability
 			webpush=messaging.WebpushConfig(
+				headers={
+					"Urgency": "high"  # Ensures the notification is delivered immediately even if browser is closed
+				},
 				notification=messaging.WebpushNotification(
 					icon=icon,
 					badge=icon,
+					tag="frappe-push",  # Allows renotify to work and avoids duplicates
+					renotify=True,      # Wakes the device for subsequent notifications
+					vibrate=[200, 100, 200],  # Standard vibration pattern
+					require_interaction=True, # Keeps the notification until dismissed
 					data=clean_data # This makes data available in SW event.notification.data
 				),
 				fcm_options=messaging.WebpushFCMOptions(

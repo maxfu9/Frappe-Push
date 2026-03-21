@@ -10,15 +10,21 @@ if (firebaseConfig.apiKey) {
 
     // Background message handler
     messaging.onBackgroundMessage((payload) => {
-        console.log('[firebase-messaging-sw.js] Received background message ', payload);
+        console.log('[firebase-messaging-sw.js] Received background message: ', JSON.stringify(payload, null, 2));
         
+        // If FCM auto-displays, this might still be called for the data portion.
+        // We log it to help debug "silent" deliveries.
         if (!payload.notification && payload.data) {
             const data = payload.data;
             const notificationTitle = data.title || "New Notification";
             const notificationOptions = {
                 body: data.body || "",
                 icon: data.notification_icon || '/assets/frappe/images/frappe-favicon.png',
-                data: data // Pass data for click handler
+                data: data,
+                tag: 'frappe-push',
+                renotify: true,
+                requireInteraction: true,
+                vibrate: [200, 100, 200]
             };
             return self.registration.showNotification(notificationTitle, notificationOptions);
         }
