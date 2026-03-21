@@ -350,11 +350,11 @@ def trigger_notification_log_push(doc, method=None):
 
 		# Inclusive logic: Handle all Notification Logs
 		frappe.log_error(f"Notification Log Hook Triggered for {doc.for_user}", "Frappe Push Hook")
-		
 		# NATIVE REFINE: 
 		# Title: Subject (e.g. "New Customer assigned to you")
 		# Body: From [User] + Message Content
-		title = doc.subject or doc.document_name or "New Alert"
+		# STRIP HTML from title to prevent <strong> tags seen in desk
+		title = frappe.utils.strip_html(doc.subject or doc.document_name or "New Alert")
 		
 		from_user_name = frappe.db.get_value("User", doc.from_user, "full_name") or doc.from_user
 		
@@ -368,7 +368,7 @@ def trigger_notification_log_push(doc, method=None):
 		
 		if len(body) > 120:
 			body = body[:117] + "..."
-
+		
 		# ROBUST LINK GENERATION:
 		# If doc.document_type and doc.document_name are present, use them!
 		click_action = doc.link or "/app"
@@ -391,49 +391,3 @@ def trigger_notification_log_push(doc, method=None):
 		)
 	except Exception as e:
 		frappe.log_error(f"FCM Push Hook Error: {str(e)}", "Frappe Push Hook Error")
-
-def trigger_todo_notification_push(doc, method=None):
-	"""Hook for ToDo after_insert (Assignments)"""
-	try:
-		if not doc.allocated_to:
-			return
-		
-		# Skip if FCM is disabled
-		config = frappe.get_single("FCM Config")
-		if not config.enable:
-			return
-		
-		frappe.log_error(f"ToDo Hook Triggered for {doc.allocated_to}", "Frappe Push Hook")
-
-		# NATIVE REFINE:
-		# Title: Document ID
-		# Body: Assigned by [User]
-		title = doc.name
-		
-		assigned_by = frappe.db.get_value("User", doc.owner, "full_name") or doc.owner
-		body = f"Assigned by {assigned_by}"
-		
-		if doc.reference_type and doc.reference_name:
-			title = doc.reference_name
-			body = f"New {doc.reference_type} assigned by {assigned_by}"
-		
-		if doc.description:
-			body += f": {doc.description}"
-
-		# Keep it concise
-		if len(body) > 120:
-			body = body[:117] + "..."
-		
-		send_notification_to_user(
-			user=doc.allocated_to,
-			title=title,
-			body=frappe.utils.strip_html(body),
-			data={
-				"document_type": doc.reference_type,
-				"document_name": doc.reference_name,
-				"type": "Assignment",
-				"click_action": f"/app/{frappe.scrub(doc.reference_type).replace('_', '-')}/{doc.reference_name}" if doc.reference_type and doc.reference_name else "/app/todo"
-			}
-		)
-	except Exception as e:
-		frappe.log_error(f"ToDo FCM Hook Error: {str(e)}", "Frappe Push Hook Error")
