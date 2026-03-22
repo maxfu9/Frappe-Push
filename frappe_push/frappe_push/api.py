@@ -178,7 +178,7 @@ def send_push_notification(token, title, body, data=None):
 				notification=messaging.WebpushNotification(
 					icon=icon,
 					badge=icon,
-					tag="frappe-push",  # Allows renotify to work and avoids duplicates
+					tag=str(clean_data.get("document_name") or frappe.generate_hash(length=8)), # Unique tag allows stacking
 					renotify=True,      # Wakes the device for subsequent notifications
 					vibrate=[200, 100, 200],  # Standard vibration pattern
 					require_interaction=True, # Keeps the notification until dismissed

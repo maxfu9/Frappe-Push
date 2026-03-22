@@ -21,7 +21,7 @@ if (firebaseConfig.apiKey) {
                 body: data.body || "",
                 icon: data.notification_icon || '/assets/frappe/images/frappe-favicon.png',
                 data: data,
-                tag: 'frappe-push',
+                tag: data.document_name || 'frappe-push-' + Date.now(), // Unique tag allows stacking
                 renotify: true,
                 requireInteraction: true,
                 vibrate: [200, 100, 200]
