@@ -350,8 +350,8 @@ def get_service_worker():
 def trigger_notification_log_push(doc, method=None):
 	"""Hook for Notification Log after_insert"""
 	try:
-		if not doc.for_user:
-			return
+		# If user is None or Guest, we handle it as a broadcast/guest target
+		is_guest_target = not doc.for_user or doc.for_user == "Guest"
 		
 		# Skip if FCM is disabled
 		config = frappe.get_single("FCM Config")
@@ -388,19 +388,62 @@ def trigger_notification_log_push(doc, method=None):
 			scrubbed_doctype = frappe.scrub(doc.document_type).replace("_", "-")
 			click_action = f"/app/{scrubbed_doctype}/{doc.document_name}"
 		
-		send_notification_to_user(
-			user=doc.for_user,
-			title=title,
-			body=body,
-			data={
-				"document_type": getattr(doc, "document_type", ""),
-				"document_name": getattr(doc, "document_name", ""),
-				"type": getattr(doc, "type", ""),
-				"click_action": click_action
-			}
-		)
+		if is_guest_target:
+			# If it's for Guests, we broadcast to all guests
+			send_promo_broadcast(
+				title=title,
+				message=body,
+				click_action=click_action,
+				target="Guests"
+			)
+		else:
+			send_notification_to_user(
+				user=doc.for_user,
+				title=title,
+				body=body,
+				data={
+					"document_type": getattr(doc, "document_type", ""),
+					"document_name": getattr(doc, "document_name", ""),
+					"type": getattr(doc, "type", ""),
+					"click_action": click_action
+				}
+			)
 	except Exception as e:
 		frappe.log_error(f"FCM Push Hook Error: {str(e)}", "Frappe Push Hook Error")
+
+def trigger_blog_post_push(doc, method=None):
+	"""Hook for Blog Post after_insert / on_update"""
+	try:
+		if not doc.published:
+			return
+		
+		# Prevent duplicate notifications on every edit after publishing
+		if method == "on_update":
+			previous_doc = doc.get_doc_before_save()
+			if previous_doc and previous_doc.published:
+				return
+
+		# Skip if FCM is disabled
+		config = frappe.get_single("FCM Config")
+		if not config.enable:
+			return
+
+		title = f"New Blog: {doc.title}"
+		body = frappe.utils.strip_html(doc.content or "")[:120]
+		if len(body) == 120:
+			body += "..."
+		
+		# Relative URL for blog
+		click_action = f"/{doc.route}" if doc.route else f"/blog/{doc.name}"
+
+		send_promo_broadcast(
+			title=title,
+			message=body,
+			click_action=click_action,
+			target="Guests"
+		)
+	except Exception as e:
+		frappe.log_error(f"FCM Blog Push Error: {str(e)}", "Frappe Push Blog Error")
 
 def trigger_todo_notification_push(doc, method=None):
 	"""Placeholder to prevent AttributeError after hook removal until cache is cleared"""

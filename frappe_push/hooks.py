@@ -144,6 +144,10 @@ doc_events = {
 	"Sales Order": {
 		"on_submit": "frappe_push.frappe_push.api.trigger_guest_order_push",
 		"on_update_after_submit": "frappe_push.frappe_push.api.trigger_guest_order_push"
+	},
+	"Blog Post": {
+		"after_insert": "frappe_push.frappe_push.api.trigger_blog_post_push",
+		"on_update": "frappe_push.frappe_push.api.trigger_blog_post_push"
 	}
 }
 
