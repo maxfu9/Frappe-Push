@@ -193,6 +193,11 @@ def send_push_notification(token, title, body, data=None):
 		)
 		
 		response = messaging.send(message, app=app)
+		# LOG SUCCESS WITH MESSAGE ID FOR DIAGNOSTICS
+		frappe.log_error(
+			title="FCM Delivery Dispatched",
+			message=f"Success! FCM Message ID: {response}\nTarget Token: {token[:15]}...\nTitle: {title}"
+		)
 		return True
 	except Exception as e:
 		error_str = str(e)
@@ -275,8 +280,8 @@ def send_notification_to_user(user, title, body, data=None):
 		frappe.log_error(f"Debouncing duplicate notification for user {user}: {title}", "Frappe Push Debounce")
 		return False
 	
-	# Set debounce for 5 seconds
-	frappe.cache().set_value(debounce_key, 1, expires_in_sec=5)
+	# Set debounce for 2 seconds (Reduced from 5s for better responsiveness)
+	frappe.cache().set_value(debounce_key, 1, expires_in_sec=2)
 
 	# Get all tokens for the user, ordered by last used
 	tokens = frappe.get_all("FCM Token", 
@@ -302,7 +307,7 @@ def send_notification_to_user(user, title, body, data=None):
 			unique_tokens.append(t.fcm_token)
 			seen_signatures.add(sig)
 	
-	frappe.log_error(f"Found {len(unique_tokens)} unique device targets for user {user} (after OS filtering)", "Frappe Push Dispatch")
+	frappe.log_error(f"User {user}: Targeting {len(unique_tokens)} unique device(s) from {len(tokens)} total tokens. Signatures found: {', '.join(list(seen_signatures))}", "Frappe Push Dispatch")
 	
 	success_count = 0
 	for token in unique_tokens:
