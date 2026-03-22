@@ -49,8 +49,26 @@ if (firebaseConfig.apiKey) {
                     var client = windowClients[i];
                     if ('focus' in client) {
                         client.focus();
-                        if (client.url.indexOf(urlToOpen) === -1) {
-                            return client.navigate(urlToOpen);
+                        
+                        // Robust URL comparison: Compare path and search, ignore protocol/origin differences if site matches
+                        try {
+                            const clientUrl = new URL(client.url);
+                            const targetUrl = new URL(urlToOpen, self.location.origin);
+                            
+                            // Normalize by removing trailing slashes
+                            const normalize = (path) => path.replace(/\/+$/, '') || '/';
+                            
+                            if (normalize(clientUrl.pathname) !== normalize(targetUrl.pathname) || 
+                                clientUrl.search !== targetUrl.search || 
+                                clientUrl.hash !== targetUrl.hash) {
+                                console.log('[firebase-messaging-sw.js] Navigating existing client to:', urlToOpen);
+                                return client.navigate(urlToOpen);
+                            }
+                        } catch (e) {
+                            console.error('[firebase-messaging-sw.js] URL Parse error, falling back to indexOf:', e);
+                            if (client.url.indexOf(urlToOpen) === -1) {
+                                return client.navigate(urlToOpen);
+                            }
                         }
                         return;
                     }

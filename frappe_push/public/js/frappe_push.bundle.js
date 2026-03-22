@@ -139,7 +139,19 @@ frappe_push.setup_firebase = function(config) {
 								e.preventDefault();
 								window.focus();
 								if (click_action) {
-									window.location.href = click_action;
+									// Determine if it's an internal route that we should handle via frappe.set_route
+									let route = click_action;
+									if (click_action.startsWith(window.location.origin)) {
+										route = click_action.replace(window.location.origin, '');
+									}
+									
+									if (route.startsWith('/app') && window.frappe) {
+										// Scrub leading /app/ and navigate
+										const actual_route = route.replace(/^\/app\//, '');
+										frappe.set_route(actual_route);
+									} else {
+										window.location.href = click_action;
+									}
 								}
 								n.close();
 							};
@@ -218,7 +230,18 @@ frappe_push.setup_firebase = function(config) {
 							if (e.target.classList.contains('notify-close')) {
 								dismiss();
 							} else if (click_action) {
-								window.location.href = click_action;
+								let route = click_action;
+								if (click_action.startsWith(window.location.origin)) {
+									route = click_action.replace(window.location.origin, '');
+								}
+								
+								if (route.startsWith('/app') && window.frappe) {
+									const actual_route = route.replace(/^\/app\//, '');
+									frappe.set_route(actual_route);
+									dismiss();
+								} else {
+									window.location.href = click_action;
+								}
 							} else {
 								// For non-link notifications, click anywhere to dismiss
 								dismiss();
