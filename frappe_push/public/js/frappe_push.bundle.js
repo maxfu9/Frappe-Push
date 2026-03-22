@@ -46,52 +46,6 @@ frappe_push.setup_firebase = function(config) {
 			}
 			const messaging = firebase.messaging();
 			
-			// Handle foreground messages
-			messaging.onMessage((payload) => {
-				console.log('Frappe Push: Received foreground message ', payload);
-				
-				// De-duplicate: Only show notification in the active tab
-				if (document.visibilityState !== 'visible') {
-					console.log('Frappe Push: Tab is background, skipping foreground alert.');
-					return;
-				}
-
-				// MERGE FIX: Data and Notification payloads
-				const data = Object.assign({}, payload.data, payload.notification);
-				const notificationTitle = data.title || "New Notification";
-				const notificationBody = data.body || "";
-				// Use absolute click_action_url if available
-				const clickAction = data.click_action_url || data.click_action || '/app';
-				
-				const notificationOptions = {
-					body: notificationBody,
-					icon: config.siteLogo || data.notification_icon || '/assets/frappe/images/frappe-favicon.png'
-				};
-				
-				// Show a desktop notification even in foreground
-				if (Notification.permission === "granted") {
-					const n = new Notification(notificationTitle, notificationOptions);
-					n.onclick = (e) => {
-						e.preventDefault();
-						window.focus();
-						if (clickAction) {
-							window.location.href = clickAction;
-						}
-						n.close();
-					};
-				}
-				
-				// Also show a Frappe alert (clickable)
-				frappe.show_alert({
-					message: `<b>${notificationTitle}</b><br>${notificationBody}`,
-					indicator: 'blue',
-					onClick: () => {
-						if (clickAction) {
-							window.location.href = clickAction;
-						}
-					}
-				});
-			});
 
 			// Revert to proven API path for registration
 			navigator.serviceWorker.register('/api/method/frappe_push.frappe_push.api.get_service_worker', { scope: '/' })
@@ -173,6 +127,23 @@ frappe_push.setup_firebase = function(config) {
 						const click_action = data.click_action || data.click_action_url || null;
 
 						if (!title && !body) return; // Silent background data
+
+						// Show a native desktop notification even in foreground
+						if (Notification.permission === "granted") {
+							const n = new Notification(title, {
+								body: body,
+								icon: icon,
+								tag: data.document_name || 'frappe-push-' + Date.now()
+							});
+							n.onclick = (e) => {
+								e.preventDefault();
+								window.focus();
+								if (click_action) {
+									window.location.href = click_action;
+								}
+								n.close();
+							};
+						}
 
 						const existing_notifications = document.querySelectorAll('.frappe-push-notification');
 						const offset = existing_notifications.length * 100; // 100px per notification
