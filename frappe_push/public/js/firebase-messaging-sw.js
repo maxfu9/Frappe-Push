@@ -58,17 +58,20 @@ if (firebaseConfig.apiKey) {
                             // Normalize by removing trailing slashes
                             const normalize = (path) => path.replace(/\/+$/, '') || '/';
                             
+                            console.log('[firebase-messaging-sw.js] Client URL:', client.url);
+                            console.log('[firebase-messaging-sw.js] Target URL:', urlToOpen);
+
                             if (normalize(clientUrl.pathname) !== normalize(targetUrl.pathname) || 
                                 clientUrl.search !== targetUrl.search || 
                                 clientUrl.hash !== targetUrl.hash) {
-                                console.log('[firebase-messaging-sw.js] Navigating existing client to:', urlToOpen);
+                                console.log('[firebase-messaging-sw.js] URLs differ. Navigating client...');
                                 return client.navigate(urlToOpen);
+                            } else {
+                                console.log('[firebase-messaging-sw.js] URLs match. Only focusing.');
                             }
                         } catch (e) {
-                            console.error('[firebase-messaging-sw.js] URL Parse error, falling back to indexOf:', e);
-                            if (client.url.indexOf(urlToOpen) === -1) {
-                                return client.navigate(urlToOpen);
-                            }
+                            console.error('[firebase-messaging-sw.js] URL Parse error, navigating just in case:', e);
+                            return client.navigate(urlToOpen);
                         }
                         return;
                     }
