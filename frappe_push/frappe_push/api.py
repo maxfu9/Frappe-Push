@@ -20,7 +20,7 @@ def send_promo_broadcast(title, message, click_action="/app", target="Both"):
 
 	# Build filters based on target
 	filters = {}
-	if target == "Guests":
+	if target in ["Guest", "Guests"]:
 		filters["user"] = ["in", ["Guest", None, ""]]
 	elif target == "Staff":
 		filters["user"] = ["not in", ["Guest", None, ""]]
@@ -283,10 +283,15 @@ def send_notification_to_user(user, title, body, data=None):
 	# Set debounce for 2 seconds (Reduced from 5s for better responsiveness)
 	frappe.cache().set_value(debounce_key, 1, expires_in_sec=2)
 
+	# Normalize 'Guest' user ID
+	search_user = user
+	if user == "Guest":
+		search_user = None
+		
 	# Get all tokens for the user, ordered by last used
 	tokens = frappe.get_all("FCM Token", 
-		filters={"user": user}, 
-		fields=["fcm_token", "browser"],
+		filters={"user": ["in", [search_user, "Guest", ""] if search_user is None else [search_user]]}, 
+		fields=["fcm_token", "browser", "device_id"],
 		order_by="last_used desc"
 	)
 	
