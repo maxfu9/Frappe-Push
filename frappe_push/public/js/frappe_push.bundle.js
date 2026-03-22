@@ -180,7 +180,7 @@ frappe_push.setup_firebase = function(config) {
 						const notify_html = `
 							<div id="${notify_id}" class="frappe-push-notification" style="
 								position: fixed;
-								top: ${20 + offset}px;
+								bottom: ${20 + offset}px;
 								right: 20px;
 								width: calc(100% - 40px);
 								max-width: 380px;
@@ -196,7 +196,7 @@ frappe_push.setup_firebase = function(config) {
 								z-index: 1000000;
 								font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 								cursor: pointer;
-								transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease, top 0.3s ease;
+								transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease, bottom 0.3s ease;
 								transform: translateX(400px);
 								opacity: 0;
 								border: 1px solid rgba(0,0,0,0.05);
@@ -238,7 +238,7 @@ frappe_push.setup_firebase = function(config) {
 								el.remove();
 								// Re-calculate positions for remaining notifications
 								document.querySelectorAll('.frappe-push-notification').forEach((node, index) => {
-									node.style.top = (20 + (index * 100)) + 'px';
+									node.style.bottom = (20 + (index * 100)) + 'px';
 								});
 							}, 400);
 						};
