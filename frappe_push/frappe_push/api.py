@@ -79,7 +79,7 @@ def get_fcm_app():
 			cred = credentials.Certificate(service_account_info)
 			return firebase_admin.initialize_app(cred, name="frappe_push")
 		except Exception as e:
-			frappe.log_error(f"FCM Initialization Error: {str(e)}", "Frappe Push")
+			frappe.log_error(title="FCM Initialization Error", message=str(e))
 			return None
 
 @frappe.whitelist(allow_guest=True)
@@ -101,7 +101,7 @@ def get_public_config():
 	}
 	
 	# LOG EXACT OUTPUT FOR DEBUGGING
-	frappe.log_error(f"FCM Config Output: {json.dumps(res, indent=2)}", "Frappe Push Config")
+	frappe.log_error(title="Frappe Push Config", message=json.dumps(res, indent=2))
 	
 	return res
 
@@ -268,7 +268,7 @@ def trigger_guest_order_push(doc, method=None):
 @frappe.whitelist()
 def send_notification_to_user(user, title, body, data=None):
 	# DEBUG
-	frappe.log_error(f"Attempting to send notification to user {user}", "Frappe Push Dispatch")
+	frappe.log_error(title="Frappe Push Dispatch", message=f"Attempting to send notification to user {user}")
 
 	# De-duplication Debounce: Prevent identical notifications in a 5-second window
 	# This handles situations where multiple hooks fire for the same event
@@ -277,7 +277,7 @@ def send_notification_to_user(user, title, body, data=None):
 	debounce_key = f"frappe_push_debounce:{user}:{frappe.scrub(title)}:{doc_type}:{doc_name}"
 	
 	if frappe.cache().get_value(debounce_key):
-		frappe.log_error(f"Debouncing duplicate notification for user {user}: {title}", "Frappe Push Debounce")
+		frappe.log_error(title="Frappe Push Debounce", message=f"Debouncing duplicate notification for user {user}: {title}")
 		return False
 	
 	# Set debounce for 2 seconds (Reduced from 5s for better responsiveness)
@@ -296,7 +296,7 @@ def send_notification_to_user(user, title, body, data=None):
 	)
 	
 	if not tokens:
-		frappe.log_error(f"No FCM tokens found for user {user}. Open the app in browser to register.", "Frappe Push Dispatch")
+		frappe.log_error(title="Frappe Push Dispatch", message=f"No FCM tokens found for user {user}. Open the app in browser to register.")
 		return False
 
 	# Aggressive de-duplication by OS/Device type
@@ -312,7 +312,7 @@ def send_notification_to_user(user, title, body, data=None):
 			unique_tokens.append(t.fcm_token)
 			seen_signatures.add(sig)
 	
-	frappe.log_error(f"User {user}: Targeting {len(unique_tokens)} unique device(s) from {len(tokens)} total tokens. Signatures found: {', '.join(list(seen_signatures))}", "Frappe Push Dispatch")
+	frappe.log_error(title="Frappe Push Dispatch", message=f"User {user}: Targeting {len(unique_tokens)} unique device(s) from {len(tokens)} total tokens. Signatures found: {', '.join(list(seen_signatures))}")
 	
 	success_count = 0
 	for token in unique_tokens:
@@ -359,7 +359,7 @@ def trigger_notification_log_push(doc, method=None):
 			return
 
 		# Inclusive logic: Handle all Notification Logs
-		frappe.log_error(f"Notification Log Hook Triggered for {doc.for_user}", "Frappe Push Hook")
+		frappe.log_error(title="Frappe Push Hook", message=f"Notification Log Hook Triggered for {doc.for_user}")
 		# NATIVE REFINE: 
 		# Title: Subject (e.g. "New Customer assigned to you")
 		# Body: From [User] + Message Content
@@ -409,7 +409,7 @@ def trigger_notification_log_push(doc, method=None):
 				}
 			)
 	except Exception as e:
-		frappe.log_error(f"FCM Push Hook Error: {str(e)}", "Frappe Push Hook Error")
+		frappe.log_error(title="Frappe Push Hook Error", message=str(e))
 
 def trigger_blog_post_push(doc, method=None):
 	"""Hook for Blog Post after_insert / on_update"""
@@ -443,7 +443,7 @@ def trigger_blog_post_push(doc, method=None):
 			target="Guests"
 		)
 	except Exception as e:
-		frappe.log_error(f"FCM Blog Push Error: {str(e)}", "Frappe Push Blog Error")
+		frappe.log_error(title="Frappe Push Blog Error", message=str(e))
 
 def trigger_todo_notification_push(doc, method=None):
 	"""Placeholder to prevent AttributeError after hook removal until cache is cleared"""
