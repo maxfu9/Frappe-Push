@@ -101,8 +101,6 @@ def get_public_config():
 	}
 	
 	# LOG EXACT OUTPUT FOR DEBUGGING
-	frappe.log_error(title="Frappe Push Config", message=json.dumps(res, indent=2))
-	
 	return res
 
 @frappe.whitelist(allow_guest=True)
@@ -193,11 +191,6 @@ def send_push_notification(token, title, body, data=None):
 		)
 		
 		response = messaging.send(message, app=app)
-		# LOG SUCCESS WITH MESSAGE ID FOR DIAGNOSTICS
-		frappe.log_error(
-			title="FCM Delivery Dispatched",
-			message=f"Success! FCM Message ID: {response}\nTarget Token: {token[:15]}...\nTitle: {title}"
-		)
 		return True
 	except Exception as e:
 		error_str = str(e)
@@ -267,8 +260,6 @@ def trigger_guest_order_push(doc, method=None):
 
 @frappe.whitelist()
 def send_notification_to_user(user, title, body, data=None):
-	# DEBUG
-	frappe.log_error(title="Frappe Push Dispatch", message=f"Attempting to send notification to user {user}")
 
 	# De-duplication Debounce: Prevent identical notifications in a 5-second window
 	# This handles situations where multiple hooks fire for the same event
@@ -277,7 +268,6 @@ def send_notification_to_user(user, title, body, data=None):
 	debounce_key = f"frappe_push_debounce:{user}:{frappe.scrub(title)}:{doc_type}:{doc_name}"
 	
 	if frappe.cache().get_value(debounce_key):
-		frappe.log_error(title="Frappe Push Debounce", message=f"Debouncing duplicate notification for user {user}: {title}")
 		return False
 	
 	# Set debounce for 2 seconds (Reduced from 5s for better responsiveness)
@@ -296,7 +286,6 @@ def send_notification_to_user(user, title, body, data=None):
 	)
 	
 	if not tokens:
-		frappe.log_error(title="Frappe Push Dispatch", message=f"No FCM tokens found for user {user}. Open the app in browser to register.")
 		return False
 
 	# Aggressive de-duplication by OS/Device type
@@ -311,8 +300,6 @@ def send_notification_to_user(user, title, body, data=None):
 		if sig not in seen_signatures:
 			unique_tokens.append(t.fcm_token)
 			seen_signatures.add(sig)
-	
-	frappe.log_error(title="Frappe Push Dispatch", message=f"User {user}: Targeting {len(unique_tokens)} unique device(s) from {len(tokens)} total tokens. Signatures found: {', '.join(list(seen_signatures))}")
 	
 	success_count = 0
 	for token in unique_tokens:
@@ -359,7 +346,6 @@ def trigger_notification_log_push(doc, method=None):
 			return
 
 		# Inclusive logic: Handle all Notification Logs
-		frappe.log_error(title="Frappe Push Hook", message=f"Notification Log Hook Triggered for {doc.for_user}")
 		# NATIVE REFINE: 
 		# Title: Subject (e.g. "New Customer assigned to you")
 		# Body: From [User] + Message Content
