@@ -251,7 +251,16 @@ frappe_push.setup_firebase = function(config) {
 
 					// Premium Persistent Banner: Stays visible until interacted with
 					if (Notification.permission === 'default') {
-						show_subscription_banner();
+						const is_guest = frappe.session.user === 'Guest';
+						const today = new Date().toDateString();
+						const last_prompt = localStorage.getItem("frappe_push_last_prompt");
+
+						if (!is_guest || last_prompt !== today) {
+							show_subscription_banner();
+							if (is_guest) {
+								localStorage.setItem("frappe_push_last_prompt", today);
+							}
+						}
 					} else if (Notification.permission === 'granted') {
 						request_and_get_token(true);
 					}
