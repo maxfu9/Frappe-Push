@@ -40,6 +40,14 @@ def _send_promo_broadcast(title, message, click_action="/app", target="Both"):
 
 	# FCM Multicast Limit: 500 tokens per batch
 	success_count = 0
+	click_action_url = frappe.utils.get_url(click_action)
+	
+	# Prepare data payload for Service Worker
+	clean_data = {
+		"click_action": str(click_action),
+		"click_action_url": str(click_action_url)
+	}
+
 	for i in range(0, len(token_list), 500):
 		batch = token_list[i:i + 500]
 		
@@ -51,13 +59,15 @@ def _send_promo_broadcast(title, message, click_action="/app", target="Both"):
 				title=str(title),
 				body=str(message),
 			),
+			data=clean_data,
 			webpush=messaging.WebpushConfig(
 				notification=messaging.WebpushNotification(
 					icon=icon_url,
-					badge=icon_url
+					badge=icon_url,
+					data=clean_data
 				),
 				fcm_options=messaging.WebpushFCMOptions(
-					link=frappe.utils.get_url(click_action)
+					link=click_action_url
 				)
 			),
 			tokens=batch,
