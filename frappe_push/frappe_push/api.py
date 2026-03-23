@@ -421,9 +421,9 @@ def trigger_blog_post_push(doc, method=None):
 			return
 
 		title = doc.title
-		body = frappe.utils.strip_html(doc.content or "")[:120]
-		if len(body) == 120:
-			body += "..."
+		body = frappe.utils.strip_html(doc.blog_intro or doc.content or "")[:120]
+		if len(body) >= 120:
+			body = body[:117] + "..."
 		
 		# Relative URL for blog
 		click_action = f"/{doc.route}" if doc.route else f"/blog/{doc.name}"
