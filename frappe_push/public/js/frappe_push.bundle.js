@@ -13,6 +13,9 @@ frappe_push.init = function() {
 		return;
 	}
 
+	// Always clear badge on init/refresh
+	frappe_push.clear_badge();
+
 	if (Notification.permission === "denied") {
 		console.warn("Frappe Push: Notifications are BLOCKED by the browser. Please reset permissions in the address bar (lock icon).");
 		return;
@@ -110,6 +113,7 @@ frappe_push.setup_firebase = function(config) {
 					// Handle foreground messages
 					messaging.onMessage((payload) => {
 						console.log("Frappe Push: Foreground message received:", payload);
+						frappe_push.clear_badge();
 						if (payload) {
 							show_foreground_notification(payload);
 						}
@@ -378,6 +382,18 @@ frappe_push.register_token = function(token) {
 			device_id: device_id
 		}
 	});
+};
+
+frappe_push.clear_badge = function() {
+	if (navigator.clearAppBadge) {
+		navigator.clearAppBadge();
+	}
+	// Also clear the persistent count in Cache (used by SW)
+	if ('caches' in window) {
+		caches.open('frappe-push-v1').then(cache => {
+			cache.delete('/badge-count');
+		});
+	}
 };
 
 $(function() {

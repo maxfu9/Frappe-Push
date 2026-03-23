@@ -12,6 +12,26 @@ self.addEventListener('activate', (event) => {
 
 // This placeholder will be replaced by the backend with actual config
 const firebaseConfig = {};
+const CACHE_NAME = 'frappe-push-v1';
+const BADGE_KEY = '/badge-count';
+
+async function updateBadgeCount() {
+    try {
+        const cache = await caches.open(CACHE_NAME);
+        const response = await cache.match(BADGE_KEY);
+        let count = 0;
+        if (response) {
+            count = parseInt(await response.text(), 10) || 0;
+        }
+        count++;
+        await cache.put(BADGE_KEY, new Response(count.toString()));
+        if (self.navigator && self.navigator.setAppBadge) {
+            self.navigator.setAppBadge(count);
+        }
+    } catch (e) {
+        console.error("[firebase-messaging-sw.js] Badge update error:", e);
+    }
+}
 
 if (firebaseConfig.apiKey) {
     firebase.initializeApp(firebaseConfig);
@@ -21,6 +41,9 @@ if (firebaseConfig.apiKey) {
     messaging.onBackgroundMessage((payload) => {
         console.log('[firebase-messaging-sw.js] Received background message: ', JSON.stringify(payload, null, 2));
         
+        // Update App Badge Count
+        updateBadgeCount();
+
         // If FCM auto-displays, this might still be called for the data portion.
         // We log it to help debug "silent" deliveries.
         if (!payload.notification && payload.data) {
@@ -43,6 +66,12 @@ if (firebaseConfig.apiKey) {
     self.addEventListener('notificationclick', function(event) {
         console.log('[firebase-messaging-sw.js] Notification click Received.');
         event.notification.close();
+        
+        // Clear App Badge on click
+        if (self.navigator && self.navigator.clearAppBadge) {
+            self.navigator.clearAppBadge();
+            caches.open(CACHE_NAME).then(cache => cache.delete(BADGE_KEY));
+        }
 
         const data = event.notification.data || {};
         // Use click_action_url (absolute) or click_action (relative)
