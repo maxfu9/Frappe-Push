@@ -234,6 +234,13 @@ frappe_push.setup_firebase = function(config) {
 							if (e.target.classList.contains('notify-close')) {
 								dismiss();
 							} else if (click_action) {
+								// For broadcasts, always open in a new tab
+								if (data.is_broadcast === "1") {
+									window.open(click_action, '_blank');
+									dismiss();
+									return;
+								}
+
 								let route = click_action;
 								if (click_action.startsWith(window.location.origin)) {
 									route = click_action.replace(window.location.origin, '');

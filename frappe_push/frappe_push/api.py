@@ -45,7 +45,8 @@ def _send_promo_broadcast(title, message, click_action="/app", target="Both"):
 	# Prepare data payload for Service Worker
 	clean_data = {
 		"click_action": str(click_action),
-		"click_action_url": str(click_action_url)
+		"click_action_url": str(click_action_url),
+		"is_broadcast": "1"
 	}
 
 	for i in range(0, len(token_list), 500):

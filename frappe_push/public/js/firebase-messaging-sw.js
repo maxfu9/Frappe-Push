@@ -77,6 +77,12 @@ if (firebaseConfig.apiKey) {
         // Use click_action_url (absolute) or click_action (relative)
         const urlToOpen = data.click_action_url || data.click_action || '/app';
 
+        // For broadcasts, always open in a new tab
+        if (data.is_broadcast === "1") {
+            event.waitUntil(clients.openWindow(urlToOpen));
+            return;
+        }
+
         event.waitUntil(
             clients.matchAll({
                 type: 'window',
