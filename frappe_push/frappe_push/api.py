@@ -420,7 +420,7 @@ def trigger_blog_post_push(doc, method=None):
 		if not config.enable:
 			return
 
-		title = f"New Blog: {doc.title}"
+		title = doc.title
 		body = frappe.utils.strip_html(doc.content or "")[:120]
 		if len(body) == 120:
 			body += "..."
