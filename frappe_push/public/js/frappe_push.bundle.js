@@ -252,16 +252,12 @@ frappe_push.setup_firebase = function(config) {
 					// Premium Persistent Banner: Stays visible until interacted with
 					if (Notification.permission === 'default') {
 						const is_guest = frappe.session.user === 'Guest';
-						const today = new Date().toDateString();
-						const last_prompt = localStorage.getItem("frappe_push_last_prompt");
-
-						if (!is_guest || last_prompt !== today) {
-							show_subscription_banner();
-							if (is_guest) {
-								localStorage.setItem("frappe_push_last_prompt", today);
-							}
-						}
+						console.log("Frappe Push: Showing banner for user", frappe.session.user);
+						
+						// Always show if permission is default, but don't duplicate on same page
+						show_subscription_banner();
 					} else if (Notification.permission === 'granted') {
+						console.log("Frappe Push: Permission already granted, refreshing token silently.");
 						request_and_get_token(true);
 					}
 
@@ -384,11 +380,16 @@ frappe_push.register_token = function(token) {
 	});
 };
 
-console.log("Frappe Push Script Execution Started");
-
 $(function() {
-	// Trigger only after user's FIRST click on the page
-	$(document).one('click', function() {
+	// Trigger on user's FIRST click OR 3-second delay (for Desk/Guests who might not click immediately)
+	let initialized = false;
+	const run_init = () => {
+		if (initialized) return;
+		initialized = true;
+		console.log("Frappe Push: Initializing via trigger...");
 		frappe_push.init();
-	});
+	};
+
+	$(document).one('click', run_init);
+	setTimeout(run_init, 3000); // Fallback for visibility
 });
