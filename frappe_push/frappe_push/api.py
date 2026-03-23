@@ -5,18 +5,24 @@ from frappe import _
 @frappe.whitelist()
 def send_promo_broadcast(title, message, click_action="/app", target="Both"):
 	"""
-	Sends a push notification to ALL or specific groups of subscribers.
+	Sends a push notification to ALL or specific groups of subscribers from the UI.
 	target: "Both", "Guests", or "Staff"
 	"""
 	if frappe.session.user != "Administrator" and "System Manager" not in frappe.get_roles():
 		frappe.throw(_("Not authorized to send broadcasts."))
 
+	return _send_promo_broadcast(title, message, click_action, target)
+
+def _send_promo_broadcast(title, message, click_action="/app", target="Both"):
+	"""
+	Internal broadcasting engine without permission checks.
+	"""
 	import firebase_admin
 	from firebase_admin import messaging
 	
 	app = get_fcm_app()
 	if not app:
-		frappe.throw(_("FCM is not configured or enabled."))
+		return {"status": "error", "message": _("FCM is not configured or enabled.")}
 
 	# Build filters based on target
 	filters = {}
@@ -376,7 +382,7 @@ def trigger_notification_log_push(doc, method=None):
 		
 		if is_guest_target:
 			# If it's for Guests, we broadcast to all guests
-			send_promo_broadcast(
+			_send_promo_broadcast(
 				title=title,
 				message=body,
 				click_action=click_action,
@@ -422,7 +428,7 @@ def trigger_blog_post_push(doc, method=None):
 		# Relative URL for blog
 		click_action = f"/{doc.route}" if doc.route else f"/blog/{doc.name}"
 
-		send_promo_broadcast(
+		_send_promo_broadcast(
 			title=title,
 			message=body,
 			click_action=click_action,
