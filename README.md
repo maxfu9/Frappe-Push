@@ -8,7 +8,7 @@ A robust, self-hosted Firebase Cloud Messaging (FCM) integration for Frappe and 
 - **Intelligent Triggers**:
   - **Document Assignments**: Notifies users immediately when a task or document is assigned to them (including self-assignments).
   - **Mentions**: Captures `@mentions` from the Notification Log.
-  - **Custom Triggers**: Easily hook into any Frappe event (e.g., Sales Order Submission).
+  - **System Notifications**: (e.g., Sales Order Submission).
 - **Production-Ready Architecture**:
   - **Dynamic Configuration**: No hardcoded keys. All settings are managed in the `FCM Config` DocType.
   - **On-the-Fly Service Worker**: The Service Worker is dynamically templated, ensuring site-specific IDs are always correct.
