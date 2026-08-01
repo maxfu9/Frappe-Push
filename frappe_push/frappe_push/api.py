@@ -29,8 +29,8 @@ def _send_promo_broadcast(title, message, click_action="/app", target="Both"):
 	if target in ["Guest", "Guests"]:
 		filters["user"] = ["in", ["Guest", None, ""]]
 	elif target == "Staff":
-		filters["user"] = ["not in", ["Guest", None, ""]]
-	
+		filters["user"] = ["not in", ["Guest", ""]]
+ 	
 	# Fetch unique tokens matching the filter
 	tokens = frappe.db.get_all("FCM Token", filters=filters, fields=["fcm_token"])
 	token_list = list(set([t.fcm_token for t in tokens if t.fcm_token]))
@@ -49,33 +49,26 @@ def _send_promo_broadcast(title, message, click_action="/app", target="Both"):
 		"is_broadcast": "1"
 	}
 
+
 	for i in range(0, len(token_list), 500):
 		batch = token_list[i:i + 500]
-		
 		site_logo = frappe.db.get_single_value("Website Settings", "app_logo") or "/assets/frappe/images/frappe-favicon.png"
 		icon_url = frappe.utils.get_url(site_logo)
-
+		clean_data["title"] = str(title)
+		clean_data["body"] = str(message)
+		clean_data["notification_icon"] = icon_url
 		multicast_message = messaging.MulticastMessage(
-			notification=messaging.Notification(
-				title=str(title),
-				body=str(message),
-			),
 			data=clean_data,
 			webpush=messaging.WebpushConfig(
-				notification=messaging.WebpushNotification(
-					icon=icon_url,
-					badge=icon_url,
-					data=clean_data
-				),
 				fcm_options=messaging.WebpushFCMOptions(
 					link=click_action_url
 				)
 			),
 			tokens=batch,
 		)
-		
 		response = messaging.send_each_for_multicast(multicast_message, app=app)
 		success_count += response.success_count
+
 
 	return {"status": "success", "sent_count": success_count, "target": target}
 
@@ -174,31 +167,22 @@ def send_push_notification(token, title, body, data=None):
 
 		# Hybrid payload for maximum reliability
 		# Adding 'click_action' to both notification and data for broad compatibility
+
+
 		click_action_url = frappe.utils.get_url(clean_data.get("click_action", "/app"))
-		
 		# Ensure clean_data also has the full URL for the Service Worker
 		clean_data["click_action_url"] = click_action_url
-		
+		# Data-only payload: forces ALL browsers (including Android Chrome background)
+		# to route display through our service worker's manual showNotification() call,
+		# instead of relying on FCM's own inconsistent auto-display behavior.
+		clean_data["title"] = str(title or "New Notification")
+		clean_data["body"] = str(body or "")
+		clean_data["notification_icon"] = icon
 		message = messaging.Message(
-			notification=messaging.Notification(
-				title=str(title or "New Notification"),
-				body=str(body or ""),
-				image=icon if icon.startswith("http") else None
-			),
-			# Platform-specific options for better reliability
 			webpush=messaging.WebpushConfig(
 				headers={
 					"Urgency": "high"  # Ensures the notification is delivered immediately even if browser is closed
 				},
-				notification=messaging.WebpushNotification(
-					icon=icon,
-					badge=icon,
-					tag=f"{frappe.generate_hash(token, 6)}-{str(clean_data.get('document_name') or frappe.generate_hash(length=8))}", # Profile-specific unique tag
-					renotify=True,      # Wakes the device for subsequent notifications
-					vibrate=[200, 100, 200],  # Standard vibration pattern
-					require_interaction=True, # Keeps the notification until dismissed
-					data=clean_data # This makes data available in SW event.notification.data
-				),
 				fcm_options=messaging.WebpushFCMOptions(
 					link=click_action_url
 				)
@@ -206,6 +190,7 @@ def send_push_notification(token, title, body, data=None):
 			data=clean_data,
 			token=str(token),
 		)
+
 		
 		response = messaging.send(message, app=app)
 		return True
