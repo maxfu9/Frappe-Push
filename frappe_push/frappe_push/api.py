@@ -114,7 +114,14 @@ def get_public_config():
 		"messagingSenderId": str(config.messaging_sender_id) if config.messaging_sender_id else None,
 		"appId": config.app_id,
 		"vapidKey": config.vapid_key,
-		"siteLogo": frappe.utils.get_url(site_logo)
+		"siteLogo": frappe.utils.get_url(site_logo),
+		"prompt": {
+			"enabled": bool(frappe.utils.cint(config.get("prompt_enabled") if config.get("prompt_enabled") is not None else 1)),
+			"website": bool(frappe.utils.cint(config.get("prompt_on_website") if config.get("prompt_on_website") is not None else 1)),
+			"desk": bool(frappe.utils.cint(config.get("prompt_on_desk") if config.get("prompt_on_desk") is not None else 1)),
+			"position": config.get("prompt_position") or "Bottom Left",
+			"delay": max(0, min(300, frappe.utils.cint(config.get("prompt_delay") if config.get("prompt_delay") is not None else 10))),
+		}
 	}
 	
 	# LOG EXACT OUTPUT FOR DEBUGGING

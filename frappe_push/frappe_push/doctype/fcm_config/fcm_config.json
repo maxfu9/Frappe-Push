@@ -16,6 +16,13 @@
   "vapid_key",
   "column_break_fcm",
   "fcm_service_account_json",
+  "prompt_section",
+  "prompt_enabled",
+  "prompt_on_website",
+  "prompt_on_desk",
+  "prompt_column",
+  "prompt_position",
+  "prompt_delay",
   "test_sb",
   "test_token",
   "send_test_notification"
@@ -77,6 +84,49 @@
    "fieldtype": "Password",
    "label": "FCM Service Account JSON",
    "reqd": 1
+  },
+  {
+   "fieldname": "prompt_section",
+   "fieldtype": "Section Break",
+   "label": "Subscription Prompt",
+   "description": "A non-blocking invitation shown once per site and browser. Users can always enable notifications from the website footer or Desk user menu. Clearing browser site data resets this preference."
+  },
+  {
+   "fieldname": "prompt_enabled",
+   "fieldtype": "Check",
+   "label": "Show Automatic Prompt",
+   "default": "1"
+  },
+  {
+   "fieldname": "prompt_on_website",
+   "fieldtype": "Check",
+   "label": "Show on Website",
+   "default": "1"
+  },
+  {
+   "fieldname": "prompt_on_desk",
+   "fieldtype": "Check",
+   "label": "Show in Desk",
+   "default": "1"
+  },
+  {
+   "fieldname": "prompt_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "prompt_position",
+   "fieldtype": "Select",
+   "label": "Desktop Position",
+   "options": "Bottom Left\nBottom Right",
+   "default": "Bottom Left",
+   "description": "Mobile uses a compact card above bottom navigation."
+  },
+  {
+   "fieldname": "prompt_delay",
+   "fieldtype": "Int",
+   "label": "Prompt Delay (seconds)",
+   "default": "10",
+   "description": "0 to 300 seconds. Waits while a form field or dialog is active. Never automatically asks during checkout or sign-in."
   },
   {
    "fieldname": "test_sb",

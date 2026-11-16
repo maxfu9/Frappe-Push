@@ -5,6 +5,8 @@ import base64
 
 class FCMConfig(Document):
 	def validate(self):
+		if self.prompt_delay is not None and not 0 <= frappe.utils.cint(self.prompt_delay) <= 300:
+			frappe.throw("Prompt Delay must be between 0 and 300 seconds")
 		if self.enable and self.fcm_service_account_json:
 			try:
 				json.loads(self.get_password("fcm_service_account_json"))

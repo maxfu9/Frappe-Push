@@ -25,11 +25,11 @@ app_license = "mit"
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/frappe_push/css/frappe_push.css"
+app_include_css = "push_prompt.bundle.css"
 app_include_js = "frappe_push.bundle.js"
 
 # include js, css files in header of web template
-# web_include_css = "/assets/frappe_push/css/frappe_push.css"
+web_include_css = "push_prompt.bundle.css"
 web_include_js = "frappe_push.bundle.js"
 
 # include custom scss in every website theme (without file extension ".scss")
