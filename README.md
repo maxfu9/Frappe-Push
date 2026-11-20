@@ -71,3 +71,9 @@ Contributions are welcome! Please open an issue or submit a pull request for any
 ## 📄 License
 
 MIT
+
+## Device diagnostics and delivery health
+
+Open **Push notifications** and choose **Send a test to this device**. Keep that tab visible until it reports browser confirmation. The test ID matches an **FCM Delivery** record. An accepted send without browser confirmation may still have been displayed in the background. **FCM Config** shows the queue, retry, stalled and credential-error counts for System Managers.
+
+Staff alerts expire after five minutes and order updates expire after 30 minutes. Their previews omit document details and order status. New updates to the same order replace older notifications where the browser supports grouping. The web app retries eligible, explicitly rejected targets up to two times. Frappe Push records ambiguous outcomes as **Unknown** to avoid automatic duplicate sends.

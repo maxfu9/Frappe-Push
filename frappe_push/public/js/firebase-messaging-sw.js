@@ -64,7 +64,7 @@ if (firebaseConfig.apiKey) {
 			self.registration.showNotification(data.title || "New Notification", {
 				body: data.body || "",
 				icon: safeURL(data.icon, "/assets/frappe/images/frappe-favicon.png"),
-				tag: data.event_id || undefined,
+				tag: data.tag || data.event_id || undefined,
 				data: { frappePush: true, url: safeURL(data.url, "/app") },
 			}),
 			incrementBadge(),

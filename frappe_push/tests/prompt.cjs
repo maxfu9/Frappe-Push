@@ -88,3 +88,19 @@ test('disconnect removes the connected state and offers reconnection', async () 
  assert.equal(button.hidden, true);
  assert.equal(card.querySelector('.frappe-push-enable').hidden, false);
 });
+
+test('manual settings report receipt for the current-device test', async () => {
+ const e = environment({permission:'granted'});
+ let requested = false;
+ e.prompt.setup({connected:true}, async () => 'granted', async () => {}, {
+  worker: async () => 'activated',
+  start: async () => { requested = true; return 'test-device'; },
+  status: async id => { assert.equal(id, 'test-device'); return {received:true, status:'Sent'}; },
+ });
+ e.prompt.show(true);
+ const card = e.nodes.get('frappe-push-banner');
+ assert.equal(card.querySelector('.frappe-push-test').disabled, false);
+ await card.querySelector('.frappe-push-test').onclick();
+ assert(requested);
+ assert.equal(card.querySelector('.frappe-push-feedback').textContent, 'Test {0} · {1}');
+});

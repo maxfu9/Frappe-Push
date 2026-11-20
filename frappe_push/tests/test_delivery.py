@@ -1,5 +1,6 @@
 """Focused tests for delivery decisions without contacting Firebase."""
 
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock, patch
@@ -11,15 +12,17 @@ from frappe_push.frappe_push import api, delivery, order_push, sending, subscrip
 
 class TestDelivery(TestCase):
 	def test_all_failed_broadcast_reports_failure(self):
-		event = frappe._dict(name="event", kind="Broadcast", status="Queued")
+		current = datetime(2026, 11, 20, 12)
+		event = frappe._dict(name="event", kind="Broadcast", status="Queued", creation=current)
 		with (patch.object(delivery, "frappe") as framework,
+			patch.object(delivery, "now_datetime", return_value=current),
 			patch.object(delivery, "get_message", return_value=([object()], "Title", "Body", "/")),
-			patch.object(delivery, "send_to_tokens", return_value={"accepted": 0, "failed": 1, "error": ""}),
+			patch.object(delivery, "send_to_tokens", return_value={"accepted": 0, "failed": 1, "unknown": 0, "retry": {}, "delay": 0, "reasons": {}}),
 			patch.object(delivery, "finish") as finish):
 			framework.db.get_value.return_value = event
 			delivery.dispatch("event")
 			framework.db.commit.assert_called_once()
-			finish.assert_called_once_with(event, "Failed", 0, 1, "")
+			finish.assert_called_once_with(event, "Failed", error="")
 
 	def test_duplicate_delivery_leaves_completed_events_alone(self):
 		with patch.object(delivery, "frappe") as framework, patch.object(delivery, "get_message") as get_message:
@@ -47,7 +50,7 @@ class TestDelivery(TestCase):
 				token,
 			]
 			self.assertEqual(delivery.order_message(event), (
-				[token], "Order received", "We received your order. You can track it from our website.",
+				[token], "Order update", "Open order tracking to view the latest status.",
 				"/track-order?id=ORDER-1",
 			))
 
@@ -89,3 +92,42 @@ class TestDelivery(TestCase):
 			framework.throw.side_effect = frappe.PermissionError
 			with self.assertRaises(frappe.PermissionError):
 				api.require_system_manager()
+
+	def test_retries_only_the_unaccepted_target(self):
+		current = datetime(2026, 11, 20, 12)
+		event = frappe._dict(name="event", kind="Broadcast", status="Queued", creation=current)
+		result = {"accepted": 1, "failed": 0, "unknown": 0, "retry": {"pending": "hash"},
+			"delay": 60, "reasons": {"UnavailableError": 1}}
+		event.attempts = 1
+		with (patch.object(delivery, "now_datetime", return_value=current),
+			patch.object(delivery, "randint", return_value=0),
+			patch.object(delivery, "finish") as finish):
+			delivery.handle_result(event, result, current + timedelta(minutes=30))
+			finish.assert_called_once_with(event, "Retry Scheduled",
+				retry_at=current + timedelta(minutes=1), pending={"pending": "hash"})
+			self.assertEqual(event.accepted, 1)
+
+	def test_unknown_outcome_stays_unknown(self):
+		event = frappe._dict(name="event", status="Sending", kind="Broadcast", attempts=1)
+		result = {"accepted": 1, "failed": 0, "unknown": 1, "retry": {},
+			"delay": 0, "reasons": {"Unknown batch outcome": 1}}
+		with patch.object(delivery, "finish") as finish:
+			delivery.handle_result(event, result, datetime(2026, 11, 20, 12))
+			finish.assert_called_once_with(event, "Unknown", error="Unknown batch outcome")
+			self.assertEqual(event.unknown_count, 1)
+
+	def test_retry_after_uses_provider_header(self):
+		error = Mock(http_response=Mock(headers={"Retry-After": "85"}))
+		self.assertEqual(sending.retry_after(error), 85)
+
+	def test_sender_does_not_retry_ambiguous_batch_results(self):
+		token = frappe._dict(name="device", fcm_token="registration", token_hash="hash", user=None)
+		with (patch.object(sending, "frappe") as framework,
+			patch.object(sending, "get_fcm_app", return_value=object()),
+			patch.object(sending.messaging, "send_each_for_multicast", side_effect=TimeoutError)):
+			framework.utils.get_url.return_value = "https://example.test"
+			framework.db.get_single_value.return_value = None
+			framework.get_all.return_value = [token]
+			result = sending.send_to_tokens([token], "Test", "Body", "/")
+			self.assertEqual(result["unknown"], 1)
+			self.assertEqual(result["retry"], {})

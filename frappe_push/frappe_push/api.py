@@ -3,7 +3,8 @@ from functools import wraps
 
 import frappe
 from frappe import _
-from frappe.utils import cint
+from frappe.rate_limiter import rate_limit
+from frappe.utils import cint, now_datetime
 
 from frappe_push.frappe_push.subscriptions import (
 	DISCONNECTED,
@@ -117,3 +118,49 @@ def trigger_guest_order_push(doc, method=None):
 
 def trigger_todo_notification_push(doc, method=None):
 	"""Compatibility for workers with cached hooks during an upgrade."""
+
+
+def current_test_subscription():
+	subscription = browser_subscription()
+	if not subscription or (subscription.user or None) != current_owner():
+		frappe.throw(_("Connect notifications on this device first."), frappe.PermissionError)
+	return subscription
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+@rate_limit(limit=10, seconds=60)
+def test_this_device():
+	from frappe_push.frappe_push.delivery import queue_event
+
+	subscription = current_test_subscription()
+	# Reuse the event on repeated clicks within the same minute.
+	delivery = queue_event("Device Test", subscription.name, int(now_datetime().timestamp() // 60))
+	if not delivery:
+		frappe.throw(_("Push notifications are disabled."))
+	return {"delivery": delivery}
+
+
+def get_current_device_test(delivery):
+	subscription = current_test_subscription()
+	event = frappe.db.get_value("FCM Delivery",
+		{"name": delivery, "kind": "Device Test", "reference_name": subscription.name},
+		["name", "status", "accepted", "received_on"], as_dict=True)
+	if not event:
+		frappe.throw(_("Device test not found."), frappe.PermissionError)
+	return event
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+@rate_limit(limit=120, seconds=60)
+def get_device_test_status(delivery: str):
+	event = get_current_device_test(delivery)
+	return {"status": event.status, "accepted": bool(event.accepted), "received": bool(event.received_on)}
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+@rate_limit(limit=30, seconds=60)
+def confirm_device_test(delivery: str):
+	event = get_current_device_test(delivery)
+	if event.status in ("Sending", "Sent", "Unknown") and not event.received_on:
+		frappe.db.set_value("FCM Delivery", event.name, "received_on", now_datetime(), update_modified=False)
+	return {"received": True}

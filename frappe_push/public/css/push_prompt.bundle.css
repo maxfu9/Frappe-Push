@@ -96,3 +96,18 @@ body.sf-enabled #frappe-push-banner {
 	border-radius: .5rem;
 	padding: .4rem .65rem;
 }
+
+.frappe-push-diagnostics:not([hidden]) {
+	margin-top: .75rem;
+	padding-top: .75rem;
+	border-top: 1px solid var(--border-color, #d9dce1);
+}
+
+.frappe-push-device-status {
+	margin: 0 0 .5rem;
+	font-size: .85rem;
+}
+
+.frappe-push-feedback {
+	overflow-wrap: anywhere;
+}

@@ -1,12 +1,15 @@
 """FCM configuration and result handling shared by all delivery paths."""
 
+from collections import Counter
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import hashlib
 import json
 from threading import Lock
 from urllib.parse import urlsplit, urlunsplit
 
 import firebase_admin
-from firebase_admin import credentials, messaging
+from firebase_admin import credentials, exceptions, messaging
 
 import frappe
 
@@ -62,14 +65,42 @@ def get_fcm_app():
 		return None
 
 
-def send_to_tokens(tokens, title, body, route="/app", *, event_id=""):
-	"""Return counts of accepted and failed sends. Firebase acceptance is not device delivery."""
-	result = {"accepted": 0, "failed": 0, "error": ""}
+TEMPORARY = (exceptions.UnavailableError, exceptions.InternalError, exceptions.ResourceExhaustedError)
+CREDENTIAL_ERRORS = (
+	exceptions.UnauthenticatedError, exceptions.PermissionDeniedError,
+	messaging.SenderIdMismatchError, messaging.ThirdPartyAuthError,
+)
+
+
+def retry_after(error):
+	response = error.http_response
+	value = response.headers.get("Retry-After") if response is not None else None
+	if not value:
+		return 0
+	try:
+		return max(0, int(value))
+	except ValueError:
+		try:
+			seconds = (parsedate_to_datetime(value) - datetime.now(timezone.utc)).total_seconds()
+			return max(0, int(seconds) + 1)
+		except (ValueError, TypeError, OverflowError):
+			return 0
+
+
+def send_to_tokens(tokens, title, body, route="/app", *, event_id="", ttl=86400, group="", device_test=False):
+	"""Return known outcomes and identify only explicitly rejected temporary failures."""
+	reasons = Counter()
+	result = {"accepted": 0, "failed": 0, "unknown": 0, "retry": {}, "delay": 0, "reasons": reasons}
 	if not tokens:
 		return result
+
 	app = get_fcm_app()
 	if not app:
-		return {"accepted": 0, "failed": len(tokens), "error": "FCM is disabled or misconfigured."}
+		enabled = frappe.utils.cint(frappe.db.get_single_value("FCM Config", "enable"))
+		problem = "Firebase configuration unavailable" if enabled else "Push disabled"
+		reasons[problem] = len(tokens)
+		result["failed"] = len(tokens)
+		return result
 
 	icon = frappe.db.get_single_value("Website Settings", "app_logo") or "/assets/frappe/images/frappe-favicon.png"
 	data = {
@@ -78,40 +109,58 @@ def send_to_tokens(tokens, title, body, route="/app", *, event_id=""):
 		"url": click_path(route),
 		"icon": click_path(icon, "/assets/frappe/images/frappe-favicon.png"),
 		"event_id": event_id,
+		"tag": group or event_id,
 	}
-	for start in range(0, len(tokens), 500):
-		batch = tokens[start:start + 500]
-		# Resolve the current row immediately before sending. Logout, disconnect, and
-		# account changes can revoke a token after the audience is selected.
+	if device_test:
+		data["device_test"] = "1"
+	headers = {"TTL": str(ttl), "Urgency": "high"}
+	if group:
+		headers["Topic"] = group
+
+	for start in range(0, len(tokens), 100):
+		selected = tokens[start:start + 100]
 		active = {
 			row.name: row
-			for row in frappe.get_all("FCM Token", filters={"name": ["in", [t.name for t in batch]]},
+			for row in frappe.get_all("FCM Token", filters={"name": ["in", [t.name for t in selected]]},
 				fields=TOKEN_FIELDS)
 		}
-		batch = [t for t in batch if t.name in active and t.token_hash == active[t.name].token_hash
+		batch = [t for t in selected if t.name in active and t.token_hash == active[t.name].token_hash
 			and t.user == active[t.name].user]
+		revoked = len(selected) - len(batch)
+		if revoked:
+			result["failed"] += revoked
+			reasons["Subscription changed"] += revoked
 		if not batch:
 			continue
 
 		try:
 			response = messaging.send_each_for_multicast(messaging.MulticastMessage(
-				tokens=[t.fcm_token for t in batch],
-				data=data,
-				webpush=messaging.WebpushConfig(headers={"TTL": "86400", "Urgency": "high"}),
+				tokens=[t.fcm_token for t in batch], data=data,
+				webpush=messaging.WebpushConfig(headers=headers),
 			), app=app)
 		except Exception as error:
-			result["failed"] += len(batch)
-			result["error"] = type(error).__name__
-			frappe.logger("frappe_push").warning("FCM batch failed (%s)", type(error).__name__)
+			# Batch-level exceptions do not tell us which sends were accepted.
+			result["unknown"] += len(batch)
+			reasons[f"Unknown batch outcome ({type(error).__name__})"] += len(batch)
 			continue
 
-		result["accepted"] += response.success_count
-		result["failed"] += response.failure_count
 		for token, outcome in zip(batch, response.responses, strict=True):
-			if isinstance(outcome.exception, messaging.UnregisteredError):
+			error = outcome.exception
+			if not error:
+				result["accepted"] += 1
+				continue
+
+			reason = "Firebase credentials rejected" if isinstance(error, CREDENTIAL_ERRORS) else type(error).__name__
+			reasons[reason] += 1
+			if isinstance(error, TEMPORARY) and getattr(error.http_response, "status_code", None) in (429, 500, 503):
+				result["retry"][token.name] = token.token_hash
+				minimum = 60 if isinstance(error, exceptions.ResourceExhaustedError) else 15
+				result["delay"] = max(result["delay"], minimum, retry_after(error))
+				continue
+
+			result["failed"] += 1
+			if isinstance(error, messaging.UnregisteredError):
 				frappe.db.delete("FCM Token", {"name": token.name, "token_hash": token.token_hash})
-			elif outcome.exception:
-				frappe.logger("frappe_push").warning("FCM rejected a message (%s)", type(outcome.exception).__name__)
 	return result
 
 

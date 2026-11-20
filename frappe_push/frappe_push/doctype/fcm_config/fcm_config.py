@@ -50,3 +50,24 @@ def send_test_notification():
 		"success": success,
 		"message": _("Firebase accepted the test notification.") if success else _("Failed to send test notification."),
 	}
+
+
+@frappe.whitelist(methods=["POST"])
+def get_delivery_health():
+	from datetime import timedelta
+	from frappe.utils import now_datetime
+
+	require_system_manager()
+	now = now_datetime()
+	count = lambda **filters: frappe.db.count("FCM Delivery", filters=filters)
+	return {
+		"queued": count(status="Queued"),
+		"retrying": count(status="Retry Scheduled"),
+		"stalled": count(status="Queued", creation=["<", now - timedelta(minutes=5)])
+			+ count(status="Retry Scheduled", retry_at=["<", now - timedelta(minutes=5)])
+			+ count(status="Sending", modified=["<", now - timedelta(minutes=30)]),
+		"unknown_today": count(status="Unknown", modified=[">=", now - timedelta(days=1)]),
+		"credential_errors_today": count(modified=[">=", now - timedelta(days=1)],
+			last_error=["like", "%Firebase credentials rejected%"])
+			+ count(modified=[">=", now - timedelta(days=1)], last_error=["like", "%Firebase configuration unavailable%"]),
+	}

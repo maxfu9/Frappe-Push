@@ -11,7 +11,13 @@
   "status",
   "accepted",
   "failed",
-  "last_error"
+  "last_error",
+  "attempts",
+  "retry_at",
+  "unknown_count",
+  "failure_summary",
+  "received_on",
+  "retry_targets"
  ],
  "fields": [
   {
@@ -25,7 +31,7 @@
    "fieldname": "kind",
    "fieldtype": "Select",
    "label": "Kind",
-   "options": "Notification\nBlog\nOrder\nBroadcast",
+   "options": "Notification\nBlog\nOrder\nBroadcast\nDevice Test",
    "reqd": 1,
    "in_list_view": 1,
    "read_only": 1
@@ -42,7 +48,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Queued\nSending\nSent\nPartial\nFailed\nSkipped\nUnknown",
+   "options": "Queued\nSending\nSent\nPartial\nFailed\nSkipped\nUnknown\nRetry Scheduled",
    "default": "Queued",
    "in_list_view": 1,
    "read_only": 1,
@@ -65,6 +71,43 @@
    "fieldtype": "Small Text",
    "label": "Last Error",
    "read_only": 1
+  },
+  {
+   "fieldname": "attempts",
+   "fieldtype": "Int",
+   "label": "Attempts",
+   "read_only": 1
+  },
+  {
+   "fieldname": "retry_at",
+   "fieldtype": "Datetime",
+   "label": "Next Attempt",
+   "read_only": 1
+  },
+  {
+   "fieldname": "unknown_count",
+   "fieldtype": "Int",
+   "label": "Unknown Outcomes",
+   "read_only": 1
+  },
+  {
+   "fieldname": "failure_summary",
+   "fieldtype": "Small Text",
+   "label": "Failure Reasons",
+   "read_only": 1
+  },
+  {
+   "fieldname": "received_on",
+   "fieldtype": "Datetime",
+   "label": "Browser Confirmed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "retry_targets",
+   "fieldtype": "Long Text",
+   "label": "Pending Registrations",
+   "read_only": 1,
+   "hidden": 1
   }
  ],
  "permissions": [

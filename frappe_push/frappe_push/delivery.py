@@ -1,16 +1,25 @@
 """Durable event records and delivery after the originating transaction commits."""
 
+from collections import Counter
 from datetime import timedelta
+import json
+from random import randint
 from urllib.parse import quote
 
 import frappe
-from frappe.utils import cint, now_datetime, strip_html
+from frappe.utils import cint, get_datetime, now_datetime, strip_html
 
 from frappe_push.frappe_push.sending import TOKEN_FIELDS, audience_tokens, owned_tokens, send_to_tokens
 from frappe_push.frappe_push.subscriptions import digest
 
 DOCTYPE = "FCM Delivery"
 WORKER = "frappe_push.frappe_push.delivery.dispatch"
+MAX_ATTEMPTS = 3
+LIFETIME = {"Notification": 300, "Order": 1800, "Device Test": 120}
+DELIVERY_FIELDS = [
+	"name", "kind", "reference_name", "status", "creation", "attempts", "accepted", "failed",
+	"unknown_count", "retry_at", "retry_targets", "failure_summary",
+]
 
 
 def queue_event(kind, reference, *event_parts):
@@ -40,53 +49,110 @@ def enqueue_delivery(name):
 
 
 def deliver_due():
-	for event in frappe.get_all(DOCTYPE, filters={"status": "Queued"}, limit=100, order_by="creation asc"):
-		enqueue_delivery(event.name)
+	for status, filters in (("Queued", {}), ("Retry Scheduled", {"retry_at": ["<=", now_datetime()]})):
+		for event in frappe.get_all(DOCTYPE, filters={"status": status, **filters},
+				limit=100, order_by="modified asc"):
+			enqueue_delivery(event.name)
 
-	# A worker can die after handing a message to FCM. Avoid sending it twice.
 	cutoff = now_datetime() - timedelta(minutes=30)
-	for event in frappe.get_all(DOCTYPE, filters={"status": "Sending", "modified": ["<", cutoff]},
-			fields=["name", "kind", "reference_name"], limit=100):
-		status = frappe.db.get_value(DOCTYPE, event.name, "status", for_update=True)
-		if status == "Sending":
+	for row in frappe.get_all(DOCTYPE, filters={"status": "Sending", "modified": ["<", cutoff]}, limit=100):
+		event = frappe.db.get_value(DOCTYPE, row.name, DELIVERY_FIELDS, as_dict=True, for_update=True)
+		if event and event.status == "Sending":
 			finish(event, "Unknown", error="The worker stopped before recording the outcome.")
 
 
 def dispatch(name):
-	event = frappe.db.get_value(DOCTYPE, name, ["name", "kind", "reference_name", "status"],
-		as_dict=True, for_update=True)
-	if not event or event.status != "Queued":
+	event = frappe.db.get_value(DOCTYPE, name, DELIVERY_FIELDS, as_dict=True, for_update=True)
+	if not event or event.status not in ("Queued", "Retry Scheduled"):
 		return
-	frappe.db.set_value(DOCTYPE, name, "status", "Sending")
+	current = now_datetime()
+	if event.retry_at and current < get_datetime(event.retry_at):
+		return
+
+	pending = json.loads(event.retry_targets or "{}")
+	deadline = get_datetime(event.creation) + timedelta(seconds=LIFETIME.get(event.kind, 86400))
+	if current >= deadline:
+		event.failed = cint(event.failed) + len(pending)
+		finish(event, outcome_status(event, fallback="Skipped"), error="The notification expired.")
+		return
+
+	event.attempts = cint(event.attempts) + 1
+	frappe.db.set_value(DOCTYPE, name, {"status": "Sending", "attempts": event.attempts})
 	frappe.db.commit()
 
 	try:
 		message = get_message(event)
-		if not message:
-			finish(event, "Skipped")
-			return
-		tokens, title, body, path = message
+		tokens, title, body, route = message or ([], "", "", "")
+		if pending:
+			tokens = [t for t in tokens if pending.get(t.name) == t.token_hash]
+			event.failed = cint(event.failed) + len(pending) - len(tokens)
 		if not tokens:
-			finish(event, "Failed" if event.kind == "Broadcast" else "Skipped", error="No active subscribers.")
+			fallback = "Failed" if event.kind == "Broadcast" else "Skipped"
+			finish(event, outcome_status(event, fallback=fallback), error="No eligible recipients remain.")
 			return
 
-		result = send_to_tokens(tokens, title, body, path, event_id=name)
-		accepted, failed = result["accepted"], result["failed"]
-		status = "Partial" if accepted and failed else "Sent" if accepted else "Failed"
-		finish(event, status, accepted, failed, result["error"])
+		result = send_to_tokens(tokens, title, body, route, event_id=name,
+			ttl=max(0, int((deadline - now_datetime()).total_seconds())),
+			group=digest("order:" + event.reference_name)[:32] if event.kind == "Order" else "",
+			device_test=event.kind == "Device Test")
+		handle_result(event, result, deadline)
 	except Exception:
 		frappe.db.rollback()
 		frappe.logger("frappe_push").exception("Push delivery failed: %s", name)
 		finish(event, "Unknown", error="The worker could not record a definite outcome.")
 
 
-def finish(event, status, accepted=0, failed=0, error=""):
+def handle_result(event, result, deadline):
+	event.accepted = cint(event.accepted) + result["accepted"]
+	event.failed = cint(event.failed) + result["failed"]
+	event.unknown_count = cint(event.unknown_count) + result["unknown"]
+	reasons = Counter(json.loads(event.failure_summary or "{}"))
+	reasons.update(result["reasons"])
+	event.failure_summary = json.dumps(reasons, sort_keys=True) if reasons else ""
+
+	if result["reasons"].keys() & {"Firebase credentials rejected", "Firebase configuration unavailable"}:
+		flag_configuration_error(event.name)
+
+	pending = result["retry"]
+	if pending:
+		delay = max(result["delay"], 30 * (2 ** (event.attempts - 1))) + randint(0, 10)
+		next_attempt = now_datetime() + timedelta(seconds=delay)
+		if event.attempts < MAX_ATTEMPTS and next_attempt < deadline:
+			finish(event, "Retry Scheduled", retry_at=next_attempt, pending=pending)
+			return
+		event.failed += len(pending)
+		reasons["Retry limit or notification lifetime reached"] += len(pending)
+		event.failure_summary = json.dumps(reasons, sort_keys=True)
+
+	error = ", ".join(sorted(reasons)) if reasons else ""
+	finish(event, outcome_status(event), error=error)
+
+
+def flag_configuration_error(event_id):
+	key = "frappe_push_configuration_error"
+	if not frappe.cache().get_value(key):
+		frappe.cache().set_value(key, 1, expires_in_sec=3600)
+		frappe.log_error(title="Frappe Push Firebase configuration", message=f"Check FCM Config. Delivery: {event_id}")
+
+
+def outcome_status(event, fallback="Failed"):
+	if event.unknown_count:
+		return "Unknown"
+	if event.accepted:
+		return "Partial" if event.failed else "Sent"
+	return "Failed" if event.failed else fallback
+
+
+def finish(event, status, *, error="", retry_at=None, pending=None):
 	frappe.db.set_value(DOCTYPE, event.name, {
-		"status": status, "accepted": accepted, "failed": failed, "last_error": error,
+		"status": status, "accepted": cint(event.accepted), "failed": cint(event.failed),
+		"unknown_count": cint(event.unknown_count), "failure_summary": event.failure_summary,
+		"last_error": error, "retry_at": retry_at, "retry_targets": json.dumps(pending) if pending else None,
 	})
 	if event.kind == "Broadcast":
 		frappe.db.set_value("FCM Broadcast", event.reference_name, {
-			"status": status, "sent_count": accepted, "failed_count": failed, "last_error": error,
+			"status": status, "sent_count": cint(event.accepted), "failed_count": cint(event.failed),
+			"last_error": error,
 		})
 
 
@@ -108,29 +174,26 @@ def get_message(event):
 		return notification_message(name)
 	elif event.kind == "Order":
 		return order_message(event)
+	elif event.kind == "Device Test":
+		token = frappe.db.get_value("FCM Token", name, TOKEN_FIELDS, as_dict=True)
+		if token and token.token_hash:
+			return [token], "Frappe Push test", "This device received a test notification.", "/"
 
 
 def notification_message(name):
-	meta = frappe.get_meta("Notification Log")
-	title_field = "title" if meta.has_field("title") else "subject"
-	body_field = "description" if meta.has_field("description") else "email_content"
 	doc = frappe.db.get_value("Notification Log", name,
-		["for_user", "from_user", title_field, body_field, "link", "document_type", "document_name"],
-		as_dict=True)
+		["for_user", "type", "link", "document_type", "document_name"], as_dict=True)
 	if not doc or not doc.for_user or doc.for_user == "Guest":
 		return
 
 	tokens = owned_tokens(doc.for_user)
-	title = strip_html(doc.get(title_field) or doc.document_name or "New Alert")
-	sender = frappe.db.get_value("User", doc.from_user, "full_name") if doc.from_user else None
-	body = strip_html(doc.get(body_field) or "")
-	if sender:
-		body = f"From {sender}: {body}" if body else f"From {sender}"
+	title = {"Assignment": "New assignment", "Mention": "New mention"}.get(doc.type, "New Desk notification")
+	body = "Open Desk to view the details."
 	path = doc.link or "/app"
 	if not doc.link and doc.document_type and doc.document_name:
 		doctype = frappe.scrub(doc.document_type).replace("_", "-")
 		path = f"/app/{doctype}/{quote(doc.document_name, safe='')}"
-	return tokens, title, body[:120], path
+	return tokens, title, body, path
 
 
 def order_message(event):
@@ -143,11 +206,4 @@ def order_message(event):
 	if not token or token.user or not token.token_hash:
 		return
 
-	docstatus, status, review = link.last_state.split("|", 2)
-	if docstatus == "2":
-		title, body = "Order cancelled", "Your order was cancelled."
-	elif docstatus == "0":
-		title, body = "Order received", "We received your order. You can track it from our website."
-	else:
-		title, body = "Order update", f"Order status: {status or review or 'Submitted'}."
-	return [token], title, body, f"/track-order?id={quote(event.reference_name, safe='')}"
+	return [token], "Order update", "Open order tracking to view the latest status.", f"/track-order?id={quote(event.reference_name, safe='')}"

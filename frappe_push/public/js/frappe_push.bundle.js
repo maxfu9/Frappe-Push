@@ -68,7 +68,17 @@ frappe_push.init = function () {
 				if (setup) await setup.then(({ messaging }) => messaging.deleteToken()).catch(() => {});
 			});
 
-			frappe_push.prompt.setup(config, enable, disconnect);
+			frappe_push.prompt.setup(config, enable, disconnect, {
+				worker: async () => {
+					const registration = await navigator.serviceWorker.getRegistration(workerScope);
+					return registration?.scope === new URL(workerScope, location.origin).href
+						? registration.active?.state || "installing" : "unregistered";
+				},
+				start: async () => (await frappe.call({ method: method + "test_this_device" })).message.delivery,
+				status: async (delivery) => (await frappe.call({
+					method: method + "get_device_test_status", args: { delivery },
+				})).message,
+			});
 			if (Notification.permission === "granted" && !config.disconnected) {
 				subscribe().catch(() => console.warn("Frappe Push could not refresh this subscription"));
 			} else if (Notification.permission === "default" && !config.disconnected) {
@@ -152,10 +162,11 @@ function showForeground(payload, registration) {
 	const body = data.body || payload.notification?.body || "";
 	const url = siteUrl(data.url || data.click_action_url || data.click_action, "/app");
 	const icon = siteUrl(data.icon, "/assets/frappe/images/frappe-favicon.png");
-	const tag = data.event_id || "frappe-push-" + Date.now();
+	const tag = data.tag || data.event_id || "frappe-push-" + Date.now();
 
 	const toast = document.createElement("aside");
 	toast.className = "frappe-push-notification";
+	toast.dataset.pushTag = tag;
 	toast.setAttribute("aria-label", __("Push notification"));
 	toast.setAttribute("role", "status");
 
@@ -178,8 +189,13 @@ function showForeground(payload, registration) {
 		host.id = "frappe-push-toasts";
 		document.body.append(host);
 	}
+	const previous = Array.from(host.children).find(item => item.dataset.pushTag === tag);
+	if (previous) previous.remove();
 	if (host.children.length >= 3) host.firstElementChild.remove();
 	host.append(toast);
+	if (data.device_test === "1" && data.event_id) {
+		frappe.call({ method: method + "confirm_device_test", args: { delivery: data.event_id } }).catch(() => {});
+	}
 
 	if (Notification.permission === "granted") {
 		registration.showNotification(title, {
