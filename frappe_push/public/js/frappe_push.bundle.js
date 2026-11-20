@@ -89,17 +89,7 @@ frappe_push.init = function () {
 				if (setup) await setup.then(({ messaging }) => messaging.deleteToken()).catch(() => {});
 			});
 
-			frappe_push.prompt.setup(config, enable, disconnect, {
-				worker: async () => {
-					const registration = await navigator.serviceWorker.getRegistration(workerScope);
-					return registration?.scope === new URL(workerScope, location.origin).href
-						? registration.active?.state || "installing" : "unregistered";
-				},
-				start: async () => (await frappe.call({ method: method + "test_this_device" })).message.delivery,
-				status: async (delivery) => (await frappe.call({
-					method: method + "get_device_test_status", args: { delivery },
-				})).message,
-			});
+			frappe_push.prompt.setup(config, enable, disconnect);
 			if (Notification.permission === "granted" && !config.disconnected) {
 				subscribe().catch(() => console.warn("Frappe Push could not refresh this subscription"));
 			} else if (Notification.permission === "default" && !config.disconnected) {

@@ -5,12 +5,11 @@ frappe_push.prompt = {
 	storage_key: "frappe_push_prompt_seen_v1",
 	started_at: Date.now(),
 
-	setup(config, enable, disconnect, deviceTest) {
+	setup(config, enable, disconnect) {
 		if (this.config) return;
 		this.config = config.prompt || {};
 		this.enable = enable;
 		this.disconnect = disconnect;
-		this.deviceTest = deviceTest;
 		this.connected = Boolean(config.connected);
 		this.is_desk = /^\/(app|desk)(\/|$)/.test(location.pathname);
 		this.install_controls();
@@ -111,28 +110,13 @@ frappe_push.prompt = {
 		card.dataset.position = this.config.position === "Bottom Right" ? "right" : "left";
 		card.setAttribute("aria-labelledby", "frappe-push-title");
 		// A region, not a modal: no overlay, scroll lock or focus trap.
-		card.innerHTML = `<div class="frappe-push-heading"><span class="frappe-push-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></span><h2 id="frappe-push-title"></h2><button type="button" class="frappe-push-close">×</button></div><p class="frappe-push-copy"></p><p class="frappe-push-feedback" role="status" aria-live="polite" hidden></p><div class="frappe-push-actions"><button type="button" class="frappe-push-enable"></button><button type="button" class="frappe-push-disconnect" hidden></button><button type="button" class="frappe-push-dismiss"></button></div><div class="frappe-push-diagnostics" hidden><p class="frappe-push-device-status"></p><button type="button" class="frappe-push-test"></button></div>`;
+		card.innerHTML = `<div class="frappe-push-heading"><span class="frappe-push-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></span><h2 id="frappe-push-title"></h2><button type="button" class="frappe-push-close">×</button></div><p class="frappe-push-copy"></p><p class="frappe-push-feedback" role="status" aria-live="polite" hidden></p><div class="frappe-push-actions"><button type="button" class="frappe-push-enable"></button><button type="button" class="frappe-push-disconnect" hidden></button><button type="button" class="frappe-push-dismiss"></button></div>`;
 		const title = card.querySelector("h2");
 		const copy = card.querySelector(".frappe-push-copy");
 		const action = card.querySelector(".frappe-push-enable");
 		const disconnect = card.querySelector(".frappe-push-disconnect");
 		const dismiss = card.querySelector(".frappe-push-dismiss");
 		const close = card.querySelector(".frappe-push-close");
-		const diagnostics = card.querySelector(".frappe-push-diagnostics");
-		const diagnosticStatus = card.querySelector(".frappe-push-device-status");
-		const testButton = card.querySelector(".frappe-push-test");
-		let testRunning = false;
-		diagnostics.hidden = !manual || !this.deviceTest;
-		testButton.textContent = __("Send a test to this device");
-		const refresh = async () => {
-			if (diagnostics.hidden) return;
-			testButton.disabled = !this.connected || Notification.permission !== "granted" || testRunning;
-			const worker = await this.deviceTest.worker().catch(() => "unknown");
-			diagnosticStatus.textContent = __("Permission: {0}. Worker: {1}. Subscription: {2}.", [
-				Notification.permission, worker, this.connected ? __("connected") : __("disconnected"),
-			]);
-		};
-		void refresh();
 
 		close.setAttribute("aria-label", __("Dismiss notification prompt"));
 		title.textContent = __("Stay in the loop");
@@ -154,32 +138,6 @@ frappe_push.prompt = {
 		}
 		close.onclick = dismiss.onclick = () => this.close();
 		const status = card.querySelector(".frappe-push-feedback");
-		testButton.onclick = async () => {
-			testRunning = true;
-			void refresh();
-			status.hidden = false;
-			status.textContent = __("Queuing test… Keep this tab open.");
-			try {
-				const id = await this.deviceTest.start();
-				const ends = Date.now() + 45000;
-				while (card.isConnected && Date.now() < ends) {
-					const result = await this.deviceTest.status(id);
-					const label = result.received ? __("Browser confirmed receipt")
-						: result.accepted ? __("Accepted by Firebase. Waiting for this browser")
-						: __(result.status);
-					status.textContent = __("Test {0} · {1}", [id, label]);
-					if (result.received || ["Failed", "Skipped", "Unknown"].includes(result.status)) return;
-					await new Promise(resolve => setTimeout(resolve, 2000));
-				}
-				status.textContent = __("Test {0} · No browser confirmation yet. Check FCM Delivery.", [id]);
-			} catch (_) {
-				status.textContent = __("The device test could not be checked. Try again.");
-			} finally {
-				testRunning = false;
-				void refresh();
-			}
-		};
-
 		disconnect.onclick = async () => {
 			action.disabled = disconnect.disabled = true;
 			status.hidden = false;
@@ -192,7 +150,7 @@ frappe_push.prompt = {
 				action.hidden = Notification.permission === "denied";
 			} catch (_) {
 				status.textContent = __("We couldn’t disconnect notifications. Please try again.");
-			} finally { action.disabled = disconnect.disabled = false; void refresh(); }
+			} finally { action.disabled = disconnect.disabled = false; }
 		};
 		action.onclick = async () => {
 			action.disabled = disconnect.disabled = true;
@@ -213,7 +171,7 @@ frappe_push.prompt = {
 				}
 			} catch (_) {
 				status.textContent = __("We couldn’t connect notifications. Please try again later.");
-			} finally { action.disabled = disconnect.disabled = false; void refresh(); }
+			} finally { action.disabled = disconnect.disabled = false; }
 		};
 		card.addEventListener("keydown", (event) => { if (event.key === "Escape") { event.stopPropagation(); this.close(); } });
 		document.body.append(card);
