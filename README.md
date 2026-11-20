@@ -72,7 +72,7 @@ Contributions are welcome! Please open an issue or submit a pull request for any
 
 MIT
 
-## Device diagnostics and delivery health
+## Delivery health
 
 **FCM Config** shows the queue, retry, stalled and credential-error counts for System Managers.
 
