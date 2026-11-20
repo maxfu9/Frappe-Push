@@ -104,3 +104,32 @@ test('manual settings report receipt for the current-device test', async () => {
  assert(requested);
  assert.equal(card.querySelector('.frappe-push-feedback').textContent, 'Test {0} · {1}');
 });
+
+test("confirmed disconnect survives reload without the opt-out cookie", async () => {
+ const bundle = fs.readFileSync(__dirname + "/../public/js/frappe_push.bundle.js", "utf8").replace(/^import .*;\n/gm, "");
+ const values = new Map();
+ const localStorage = {
+  getItem: key => values.get(key), setItem: (key, value) => values.set(key, value),
+  removeItem: key => values.delete(key),
+ };
+ function page(permission, config) {
+  let panel, firebaseStarts = 0;
+  const Notification = {permission};
+  const context = {
+   Notification, localStorage, window: {Notification, PushManager: {}}, navigator: {serviceWorker: {}},
+   frappe: { provide(){}, call({method, callback}) {
+    if (method.endsWith("get_public_config")) callback({message: {...config}});
+    else if (method.endsWith("unsubscribe")) return Promise.resolve({message: {success:true}});
+   }, require(){firebaseStarts++;} },
+   frappe_push: {prompt: {setup(...args){panel = args;}}}, $(){}, setTimeout(){}, clearTimeout(){}, console,
+  };
+  vm.createContext(context); vm.runInContext(bundle, context);
+  context.frappe_push.init();
+  return {panel, firebaseStarts};
+ }
+ const initial = page("denied", {connected:true, disconnected:false});
+ await initial.panel[2]();
+ const reloaded = page("granted", {connected:false, disconnected:false});
+ assert.equal(reloaded.panel[0].disconnected, true);
+ assert.equal(reloaded.firebaseStarts, 0);
+});

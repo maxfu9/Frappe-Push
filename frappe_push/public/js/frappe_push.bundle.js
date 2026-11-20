@@ -5,6 +5,20 @@ frappe.provide("frappe_push");
 const method = "frappe_push.frappe_push.api.";
 const workerRoute = "/api/method/" + method + "get_service_worker";
 const workerScope = "/frappe-push/";
+const optOutKey = "frappe_push_disabled_v1";
+
+function browserOptedOut() {
+	try { return localStorage.getItem(optOutKey) === "1"; } catch (_) { return false; }
+}
+
+function rememberOptOut(disconnected) {
+	try {
+		if (disconnected) localStorage.setItem(optOutKey, "1");
+		else localStorage.removeItem(optOutKey);
+	} catch (_) {
+		// The server opt-out cookie still applies when local storage is restricted.
+	}
+}
 const firebaseScripts = [
 	"https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js",
 	"https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js",
@@ -20,6 +34,9 @@ frappe_push.init = function () {
 		method: method + "get_public_config",
 		callback({ message: config }) {
 			if (!config) return;
+			if (config.disconnected) rememberOptOut(true);
+			config.disconnected = config.disconnected || browserOptedOut();
+			if (config.disconnected) config.connected = false;
 
 			let setup;
 			const connectFirebase = () => {
@@ -34,6 +51,7 @@ frappe_push.init = function () {
 			const serialize = (fn) => navigator.locks?.request
 				? navigator.locks.request("frappe-push-subscription", fn) : fn();
 			const subscribe = (reconnect = false) => serialize(async () => {
+				if (!reconnect && browserOptedOut()) return;
 				const { messaging, registration } = await connectFirebase();
 				const save = async () => {
 					const token = await messaging.getToken({
@@ -53,6 +71,7 @@ frappe_push.init = function () {
 					result = await save();
 				}
 				if (!result?.success) throw new Error("Push registration was not saved");
+				if (reconnect) rememberOptOut(false);
 				frappe_push.prompt.connected = true;
 				return "granted";
 			});
@@ -62,7 +81,9 @@ frappe_push.init = function () {
 				return permission === "granted" ? subscribe(true) : permission;
 			};
 			const disconnect = () => serialize(async () => {
-				await frappe.call({ method: method + "unsubscribe" });
+				const response = await frappe.call({ method: method + "unsubscribe" });
+				if (!response.message?.success) throw new Error("Push registration was not disconnected");
+				rememberOptOut(true);
 				// The server-side subscription is authoritative. The browser may already
 				// have revoked the Firebase token or lost access to the Firebase SDK.
 				if (setup) await setup.then(({ messaging }) => messaging.deleteToken()).catch(() => {});
