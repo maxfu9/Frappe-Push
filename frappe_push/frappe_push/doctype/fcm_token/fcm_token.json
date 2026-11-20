@@ -10,7 +10,9 @@
   "fcm_token",
   "browser",
   "device_id",
-  "last_used"
+  "last_used",
+  "token_hash",
+  "browser_key_hash"
  ],
  "fields": [
   {
@@ -34,12 +36,29 @@
   {
    "fieldname": "device_id",
    "fieldtype": "Data",
-   "label": "Device ID"
+   "label": "Device ID",
+   "hidden": 1
   },
   {
    "fieldname": "last_used",
    "fieldtype": "Datetime",
    "label": "Last Used"
+  },
+  {
+   "fieldname": "token_hash",
+   "fieldtype": "Data",
+   "label": "Token Hash",
+   "unique": 1,
+   "hidden": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "browser_key_hash",
+   "fieldtype": "Data",
+   "label": "Browser Key Hash",
+   "unique": 1,
+   "hidden": 1,
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,

@@ -73,3 +73,18 @@ test('settings initialize before Firebase, including when permission is blocked'
   assert.equal(setups,1);assert.equal(firebaseLoads,permission==='denied'?0:1);
  }
 });
+
+test('disconnect removes the connected state and offers reconnection', async () => {
+ const e = environment({permission:'granted'});
+ let disconnected = false;
+ e.prompt.setup({connected:true}, async () => 'granted', async () => {disconnected = true;});
+ e.prompt.show(true);
+ const card = e.nodes.get('frappe-push-banner');
+ const button = card.querySelector('.frappe-push-disconnect');
+ assert.equal(button.hidden, false);
+ await button.onclick();
+ assert.equal(disconnected, true);
+ assert.equal(e.prompt.connected, false);
+ assert.equal(button.hidden, true);
+ assert.equal(card.querySelector('.frappe-push-enable').hidden, false);
+});

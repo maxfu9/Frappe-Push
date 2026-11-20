@@ -1,0 +1,40 @@
+{
+ "doctype": "DocType",
+ "name": "FCM Order Subscription",
+ "module": "Frappe Push",
+ "engine": "InnoDB",
+ "autoname": "field:sales_order",
+ "field_order": [
+  "sales_order",
+  "subscription",
+  "last_state",
+  "latest_event"
+ ],
+ "fields": [
+  {
+   "fieldname": "sales_order",
+   "fieldtype": "Data",
+   "label": "Sales Order",
+   "reqd": 1
+  },
+  {
+   "fieldname": "subscription",
+   "fieldtype": "Data",
+   "label": "Subscription",
+   "reqd": 1
+  },
+  {
+   "fieldname": "last_state",
+   "fieldtype": "Data",
+   "label": "Last State"
+  },
+  {
+   "fieldname": "latest_event",
+   "fieldtype": "Data",
+   "label": "Latest Event"
+  }
+ ],
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC"
+}

@@ -13,6 +13,8 @@
   "cb0",
   "status",
   "sent_count",
+  "failed_count",
+  "last_error",
   "amended_from"
  ],
  "fields": [
@@ -55,13 +57,13 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Draft\nSent",
+   "options": "Draft\nQueued\nSent\nPartial\nFailed\nSkipped\nUnknown",
    "read_only": 1
   },
   {
    "fieldname": "sent_count",
    "fieldtype": "Int",
-   "label": "Sent Count",
+   "label": "Accepted by Firebase",
    "read_only": 1
   },
   {
@@ -71,6 +73,18 @@
    "no_copy": 1,
    "options": "FCM Broadcast",
    "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "failed_count",
+   "fieldtype": "Int",
+   "label": "Failed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "label": "Delivery Error",
    "read_only": 1
   }
  ],

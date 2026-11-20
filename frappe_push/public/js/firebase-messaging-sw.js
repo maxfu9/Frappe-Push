@@ -1,130 +1,73 @@
-importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js');
-
-// Force Service Worker to update and take control immediately
-self.addEventListener('install', (event) => {
-    event.waitUntil(self.skipWaiting());
-});
-
-self.addEventListener('activate', (event) => {
-    event.waitUntil(self.clients.claim());
-});
-
-// This placeholder will be replaced by the backend with actual config
 const firebaseConfig = {};
-const CACHE_NAME = 'frappe-push-v1';
-const BADGE_KEY = '/badge-count';
+const CACHE_NAME = "frappe-push-v1";
+const BADGE_KEY = "/badge-count";
 
-async function updateBadgeCount() {
-    try {
-        const cache = await caches.open(CACHE_NAME);
-        const response = await cache.match(BADGE_KEY);
-        let count = 0;
-        if (response) {
-            count = parseInt(await response.text(), 10) || 0;
-        }
-        count++;
-        await cache.put(BADGE_KEY, new Response(count.toString()));
-        if (self.navigator && self.navigator.setAppBadge) {
-            self.navigator.setAppBadge(count);
-        }
-    } catch (e) {
-        console.error("[firebase-messaging-sw.js] Badge update error:", e);
-    }
+self.addEventListener("install", (event) => event.waitUntil(self.skipWaiting()));
+
+function safeURL(value, fallback) {
+	try {
+		const url = new URL(value || fallback, self.location.origin);
+		if (url.origin === self.location.origin && /^https?:$/.test(url.protocol)) return url.href;
+	} catch (_) {
+		// Fall back to a safe site route.
+	}
+	return new URL(fallback, self.location.origin).href;
+}
+
+self.addEventListener("notificationclick", (event) => {
+	const data = event.notification.data || {};
+	if (!data.frappePush) return;
+	event.stopImmediatePropagation();
+	event.notification.close();
+	event.waitUntil(Promise.all([
+		openSitePage(safeURL(data.url, "/app")),
+		clearBadge(),
+	]));
+});
+
+async function openSitePage(url) {
+	const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+	const target = windows.find((client) => client.url === url);
+	if (target) return target.focus();
+	return self.clients.openWindow(url);
+}
+
+async function clearBadge() {
+	try {
+		if (self.navigator.clearAppBadge) await self.navigator.clearAppBadge();
+		const cache = await caches.open(CACHE_NAME);
+		await cache.delete(BADGE_KEY);
+	} catch (_) {
+		// Badge support varies by browser and should not affect the notification.
+	}
+}
+
+let badgeUpdate = Promise.resolve();
+function incrementBadge() {
+	badgeUpdate = badgeUpdate.then(async () => {
+		if (!self.navigator.setAppBadge) return;
+		const cache = await caches.open(CACHE_NAME);
+		const previous = await cache.match(BADGE_KEY);
+		const count = (previous ? parseInt(await previous.text(), 10) || 0 : 0) + 1;
+		await cache.put(BADGE_KEY, new Response(String(count)));
+		await self.navigator.setAppBadge(count);
+	}).catch(() => {});
+	return badgeUpdate;
 }
 
 if (firebaseConfig.apiKey) {
-    firebase.initializeApp(firebaseConfig);
-    const messaging = firebase.messaging();
-
-    // Background message handler
-    messaging.onBackgroundMessage((payload) => {
-        console.log('[firebase-messaging-sw.js] Received background message: ', JSON.stringify(payload, null, 2));
-        
-        // Update App Badge Count
-        updateBadgeCount();
-
-        // If FCM auto-displays, this might still be called for the data portion.
-        // We log it to help debug "silent" deliveries.
-        if (!payload.notification && payload.data) {
-            const data = payload.data;
-            const notificationTitle = data.title || "New Notification";
-            const notificationOptions = {
-                body: data.body || "",
-                icon: data.notification_icon || '/assets/frappe/images/frappe-favicon.png',
-                data: data,
-                tag: data.document_name || 'frappe-push-' + Date.now(), // Unique tag allows stacking
-                renotify: true,
-                requireInteraction: true,
-                vibrate: [200, 100, 200]
-            };
-            return self.registration.showNotification(notificationTitle, notificationOptions);
-        }
-    });
-
-    // Handle notification click
-    self.addEventListener('notificationclick', function(event) {
-        console.log('[firebase-messaging-sw.js] Notification click Received.');
-        event.notification.close();
-        
-        // Clear App Badge on click
-        if (self.navigator && self.navigator.clearAppBadge) {
-            self.navigator.clearAppBadge();
-            caches.open(CACHE_NAME).then(cache => cache.delete(BADGE_KEY));
-        }
-
-        const data = event.notification.data || {};
-        // Use click_action_url (absolute) or click_action (relative)
-        const urlToOpen = data.click_action_url || data.click_action || '/app';
-
-        // For broadcasts, always open in a new tab
-        if (data.is_broadcast === "1") {
-            event.waitUntil(clients.openWindow(urlToOpen));
-            return;
-        }
-
-        event.waitUntil(
-            clients.matchAll({
-                type: 'window',
-                includeUncontrolled: true
-            }).then(function(windowClients) {
-                // If a window is already open, focus it AND navigate to the specific doc
-                for (var i = 0; i < windowClients.length; i++) {
-                    var client = windowClients[i];
-                    if ('focus' in client) {
-                        client.focus();
-                        
-                        // Robust URL comparison: Compare path and search, ignore protocol/origin differences if site matches
-                        try {
-                            const clientUrl = new URL(client.url);
-                            const targetUrl = new URL(urlToOpen, self.location.origin);
-                            
-                            // Normalize by removing trailing slashes
-                            const normalize = (path) => path.replace(/\/+$/, '') || '/';
-                            
-                            console.log('[firebase-messaging-sw.js] Client URL:', client.url);
-                            console.log('[firebase-messaging-sw.js] Target URL:', urlToOpen);
-
-                            if (normalize(clientUrl.pathname) !== normalize(targetUrl.pathname) || 
-                                clientUrl.search !== targetUrl.search || 
-                                clientUrl.hash !== targetUrl.hash) {
-                                console.log('[firebase-messaging-sw.js] URLs differ. Navigating client...');
-                                return client.navigate(urlToOpen);
-                            } else {
-                                console.log('[firebase-messaging-sw.js] URLs match. Only focusing.');
-                            }
-                        } catch (e) {
-                            console.error('[firebase-messaging-sw.js] URL Parse error, navigating just in case:', e);
-                            return client.navigate(urlToOpen);
-                        }
-                        return;
-                    }
-                }
-                // Otherwise, open a new window
-                if (clients.openWindow) {
-                    return clients.openWindow(urlToOpen);
-                }
-            })
-        );
-    });
+	importScripts("https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js");
+	importScripts("https://www.gstatic.com/firebasejs/9.22.1/firebase-messaging-compat.js");
+	firebase.initializeApp(firebaseConfig);
+	firebase.messaging().onBackgroundMessage(async ({ data = {} }) => {
+		await Promise.all([
+			self.registration.showNotification(data.title || "New Notification", {
+				body: data.body || "",
+				icon: safeURL(data.icon, "/assets/frappe/images/frappe-favicon.png"),
+				tag: data.event_id || undefined,
+				data: { frappePush: true, url: safeURL(data.url, "/app") },
+			}),
+			incrementBadge(),
+		]);
+	});
 }

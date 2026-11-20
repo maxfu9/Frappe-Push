@@ -57,3 +57,42 @@ body.sf-enabled #frappe-push-banner {
  #frappe-push-banner .frappe-push-copy {margin:6px 0 10px;}
 }
 @media print {#frappe-push-banner, #frappe-push-settings {display:none!important;}}
+
+#frappe-push-toasts {
+	position: fixed;
+	inset-inline-end: 1rem;
+	bottom: 1rem;
+	z-index: 1060;
+	display: flex;
+	flex-direction: column;
+	gap: .75rem;
+	width: min(24rem, calc(100% - 2rem));
+	pointer-events: none;
+}
+
+.frappe-push-notification {
+	pointer-events: auto;
+	padding: 1rem;
+	border: 1px solid var(--border-color, #d9dce1);
+	border-radius: .75rem;
+	background: var(--card-bg, #fff);
+	color: var(--text-color, #161b22);
+	box-shadow: 0 .5rem 1.5rem #0002;
+	overflow-wrap: anywhere;
+}
+
+.frappe-push-notification p {
+	margin: .25rem 0 .5rem;
+}
+
+.frappe-push-notification button {
+	margin-inline-start: .75rem;
+}
+
+.frappe-push-disconnect {
+	color: inherit;
+	background: transparent;
+	border: 1px solid currentColor;
+	border-radius: .5rem;
+	padding: .4rem .65rem;
+}

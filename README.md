@@ -9,10 +9,10 @@ A robust, self-hosted Firebase Cloud Messaging (FCM) integration for Frappe and 
   - **Document Assignments**: Notifies users immediately when a task or document is assigned to them (including self-assignments).
   - **Mentions**: Captures `@mentions` from the Notification Log.
   - **System Notifications**: (e.g., Sales Order Submission).
-- **Production-Ready Architecture**:
-  - **Dynamic Configuration**: No hardcoded keys. All settings are managed in the `FCM Config` DocType.
+- **Delivery and Configuration**:
+  - **Dynamic Configuration**: Manage Firebase and prompt settings in the `FCM Config` DocType.
   - **On-the-Fly Service Worker**: The Service Worker is dynamically templated, ensuring site-specific IDs are always correct.
-  - **Token De-duplication**: Automatically cleans up old tokens per browser/user to prevent duplicate alerts.
+  - **Token De-duplication**: Keeps one active registration per browser and revokes it on logout or disconnect.
   - **Silent Refresh**: Keeps connection alive in the background without intrusive progress messages.
 - **Privacy & Control**: You own your data. Messages are sent directly from your server to Firebase.
 
@@ -56,7 +56,13 @@ bench build --app frappe_push
 
 ## 🛡️ Self-Cleanup & Maintenance
 
-The app automatically manages tokens. When a user logs in from a new browser session, old tokens for that same browser are cleared to ensure exactly one notification is delivered per device.
+The app automatically manages tokens. A registered browser refreshes its subscription when it returns. After upgrading from an older release, existing devices must revisit the site to register with the new browser credential. The previous registrations are no longer used. A user who signs out or disconnects can reconnect from Push notifications in the Desk user menu or website footer.
+
+Broadcasts and document notifications are queued after the originating transaction commits. The **FCM Delivery** list records Firebase acceptance and failures. An accepted message may still be blocked by the device. Keep the Bench scheduler and long worker active. Broadcast links must stay on the site's origin. **Staff** targets enabled System Users.
+
+On Europlast Webshop, a guest who enabled push before checkout can receive updates on new orders placed from that browser. The link opens the website's order tracking form.
+
+Frappe Push uses its own subscription endpoints. Native Frappe and HRMS mobile subscriptions use their existing relay configuration.
 
 ## 🤝 Contributing
 

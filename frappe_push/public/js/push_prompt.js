@@ -5,10 +5,12 @@ frappe_push.prompt = {
 	storage_key: "frappe_push_prompt_seen_v1",
 	started_at: Date.now(),
 
-	setup(config, enable) {
+	setup(config, enable, disconnect) {
 		if (this.config) return;
 		this.config = config.prompt || {};
 		this.enable = enable;
+		this.disconnect = disconnect;
+		this.connected = Boolean(config.connected);
 		this.is_desk = /^\/(app|desk)(\/|$)/.test(location.pathname);
 		this.install_controls();
 		this.storage_handler = (event) => {
@@ -16,7 +18,7 @@ frappe_push.prompt = {
 		};
 		window.addEventListener("storage", this.storage_handler);
 		const settings = this.config;
-		if (settings.enabled === false || (this.is_desk ? settings.desk === false : settings.website === false)) return;
+		if (config.disconnected || settings.enabled === false || (this.is_desk ? settings.desk === false : settings.website === false)) return;
 		const seconds = Number(settings.delay);
 		const delay = Number.isFinite(seconds) ? Math.max(0, Math.min(300, seconds)) : 10;
 		this.timer = setTimeout(() => this.try_auto(), Math.max(0, delay * 1000 - (Date.now() - this.started_at)));
@@ -108,10 +110,11 @@ frappe_push.prompt = {
 		card.dataset.position = this.config.position === "Bottom Right" ? "right" : "left";
 		card.setAttribute("aria-labelledby", "frappe-push-title");
 		// A region, not a modal: no overlay, scroll lock or focus trap.
-		card.innerHTML = `<div class="frappe-push-heading"><span class="frappe-push-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></span><h2 id="frappe-push-title"></h2><button type="button" class="frappe-push-close">×</button></div><p class="frappe-push-copy"></p><p class="frappe-push-feedback" role="status" aria-live="polite" hidden></p><div class="frappe-push-actions"><button type="button" class="frappe-push-enable"></button><button type="button" class="frappe-push-dismiss"></button></div>`;
+		card.innerHTML = `<div class="frappe-push-heading"><span class="frappe-push-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></span><h2 id="frappe-push-title"></h2><button type="button" class="frappe-push-close">×</button></div><p class="frappe-push-copy"></p><p class="frappe-push-feedback" role="status" aria-live="polite" hidden></p><div class="frappe-push-actions"><button type="button" class="frappe-push-enable"></button><button type="button" class="frappe-push-disconnect" hidden></button><button type="button" class="frappe-push-dismiss"></button></div>`;
 		const title = card.querySelector("h2");
 		const copy = card.querySelector(".frappe-push-copy");
 		const action = card.querySelector(".frappe-push-enable");
+		const disconnect = card.querySelector(".frappe-push-disconnect");
 		const dismiss = card.querySelector(".frappe-push-dismiss");
 		const close = card.querySelector(".frappe-push-close");
 		close.setAttribute("aria-label", __("Dismiss notification prompt"));
@@ -121,25 +124,42 @@ frappe_push.prompt = {
 			: __("Get order updates and news from EUROPLAST. You can enable notifications anytime from the footer.");
 		action.textContent = __("Enable notifications");
 		dismiss.textContent = __("Dismiss");
+		disconnect.textContent = __("Disconnect this device");
+		disconnect.hidden = !this.connected || !this.disconnect;
 		if (permission === "denied") {
 			title.textContent = __("Notifications are blocked");
 			copy.textContent = __("To enable notifications, allow them in your browser’s site settings, then reload this page.");
 			action.hidden = true;
 		} else if (permission === "granted") {
 			title.textContent = __("Push notifications");
-			copy.textContent = __("Your browser allows notifications. Use the button below to reconnect this device. You can turn notifications off in your browser’s site settings.");
+			copy.textContent = __("Your browser allows notifications. Connect or disconnect this device below.");
 			action.textContent = __("Reconnect this device");
 		}
 		close.onclick = dismiss.onclick = () => this.close();
+		const status = card.querySelector(".frappe-push-feedback");
+		disconnect.onclick = async () => {
+			action.disabled = disconnect.disabled = true;
+			status.hidden = false;
+			status.textContent = __("Disconnecting notifications…");
+			try {
+				await this.disconnect();
+				this.connected = false;
+				status.textContent = __("Notifications were disconnected on this device.");
+				disconnect.hidden = true;
+				action.hidden = Notification.permission === "denied";
+			} catch (_) {
+				status.textContent = __("We couldn’t disconnect notifications. Please try again.");
+			} finally { action.disabled = disconnect.disabled = false; }
+		};
 		action.onclick = async () => {
-			action.disabled = true;
-			const status = card.querySelector(".frappe-push-feedback");
+			action.disabled = disconnect.disabled = true;
 			status.hidden = false;
 			status.textContent = __("Connecting notifications…");
 			try {
 				const result = await this.enable();
 				if (result === "granted") {
 					status.textContent = __("Notifications enabled on this device.");
+					disconnect.hidden = !this.disconnect;
 					action.hidden = true;
 					dismiss.textContent = __("Done");
 				} else {
@@ -150,7 +170,7 @@ frappe_push.prompt = {
 				}
 			} catch (_) {
 				status.textContent = __("We couldn’t connect notifications. Please try again later.");
-			} finally { action.disabled = false; }
+			} finally { action.disabled = disconnect.disabled = false; }
 		};
 		card.addEventListener("keydown", (event) => { if (event.key === "Escape") { event.stopPropagation(); this.close(); } });
 		document.body.append(card);

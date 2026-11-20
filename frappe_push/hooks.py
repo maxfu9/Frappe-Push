@@ -142,11 +142,10 @@ doc_events = {
 		"after_insert": "frappe_push.frappe_push.api.trigger_notification_log_push"
 	},
 	"Sales Order": {
-		"on_submit": "frappe_push.frappe_push.api.trigger_guest_order_push",
-		"on_update_after_submit": "frappe_push.frappe_push.api.trigger_guest_order_push"
+		"after_insert": "frappe_push.frappe_push.order_push.link_guest_order",
+		"on_change": "frappe_push.frappe_push.order_push.track_order_status"
 	},
 	"Blog Post": {
-		"after_insert": "frappe_push.frappe_push.api.trigger_blog_post_push",
 		"on_update": "frappe_push.frappe_push.api.trigger_blog_post_push"
 	}
 }
@@ -180,9 +179,10 @@ doc_events = {
 # Overriding Methods
 # ------------------------------
 #
-override_whitelisted_methods = {
-	"frappe.push_notification.subscribe": "frappe_push.frappe_push.api.subscribe",
-	"frappe.push_notification.unsubscribe": "frappe_push.frappe_push.api.unsubscribe"
+on_logout = "frappe_push.frappe_push.subscriptions.disconnect_on_logout"
+
+scheduler_events = {
+	"all": ["frappe_push.frappe_push.delivery.deliver_due"],
 }
 #
 # each overriding function accepts a `data` argument;
